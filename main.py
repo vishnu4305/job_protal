@@ -8,61 +8,61 @@ from validation import *
 app = FastAPI()
 
 
-# # PYDANTIC MODELS
-# #---------------------------------------------------------------------------------------------------
-# # Candidate registration request
-# class CandidateRequest(BaseModel):
-#     full_name: str
-#     username: str
-#     email: str
-#     password: str
-#     phone: str
-#     skills: str
-#     experience_years: int
+# PYDANTIC MODELS
+#---------------------------------------------------------------------------------------------------
+# Candidate registration request
+class CandidateRequest(BaseModel):
+    full_name: str
+    username: str
+    email: str
+    password: str
+    phone: str
+    skills: str
+    experience_years: int
 
 
-# # Candidate login request
-# class CandidateLoginRequest(BaseModel):
-#     username: str
-#     password: str
+# Candidate login request
+class CandidateLoginRequest(BaseModel):
+    username: str
+    password: str
 
 
-# # Employee registration request
-# class EmployeeRequest(BaseModel):
-#     company_name: str
-#     username: str
-#     email: str
-#     password: str
-#     phone: str
+# Employee registration request
+class EmployeeRequest(BaseModel):
+    company_name: str
+    username: str
+    email: str
+    password: str
+    phone: str
 
 
-# # Employee login request
-# class EmployeeLoginRequest(BaseModel):
-#     username: str
-#     password: str
+# Employee login request
+class EmployeeLoginRequest(BaseModel):
+    username: str
+    password: str
 
 
-# # Job request
-# class JobRequest(BaseModel):
-#     employee_id: int
-#     title: str
-#     description: str
-#     location: str
-#     job_type: str
-#     salary: str
+# Job request
+class JobRequest(BaseModel):
+    employee_id: int
+    title: str
+    description: str
+    location: str
+    job_type: str
+    salary: str
 
 
-# # Apply job request
-# class ApplicationRequest(BaseModel):
-#     candidate_id: int
-#     job_id: int
+# Apply job request
+class ApplicationRequest(BaseModel):
+    candidate_id: int
+    job_id: int
 
 
-# # Update application status request
-# class ApplicationStatusRequest(BaseModel):
-#     employee_id: int
-#     application_id: int
-#     status: str
+# Update application status request
+class ApplicationStatusRequest(BaseModel):
+    employee_id: int
+    application_id: int
+    status: str
 
 #---------------------------------------------------------------------------------------------------
 # Home Page
