@@ -2,7 +2,7 @@ from database import Base
 from sqlalchemy import Column, Integer, String, Text, TIMESTAMP, ForeignKey, Date
 
 class Candidate(Base): # Create a SQLAlchemy ORM model called Candidate.
-    __tablename__ = "candidates" #This Python class represents the existing MySQL candidates table.
+    __tablename__ = "candidates" 
     candidate_id = Column(Integer, primary_key=True, autoincrement=True) 
     full_name = Column(String(100), nullable=False) 
     username = Column(String(50), nullable=False, unique=True) 
@@ -13,7 +13,6 @@ class Candidate(Base): # Create a SQLAlchemy ORM model called Candidate.
     experience_years = Column(Integer, default=0) 
     registered_on = Column( TIMESTAMP, server_default="CURRENT_TIMESTAMP" )
 
-# Represents the employees table 
 class Employee(Base):
     __tablename__ = "employees" 
     employee_id = Column( Integer, primary_key=True, autoincrement=True )

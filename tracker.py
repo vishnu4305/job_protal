@@ -31,9 +31,6 @@ class TrackUpdateRequest(BaseModel):
     applied_date: Optional[date] = None
     notes: Optional[str] = None
 
-
-# Called from main.py so the tracker stays in sync with the portal.
-# It does not commit; the caller commits.
 def sync_tracker(session, candidate_id, job_id, portal_status):
     status = PORTAL_TO_TRACKER.get(portal_status)
     if status is None:
@@ -63,7 +60,6 @@ def sync_tracker(session, candidate_id, job_id, portal_status):
         applied_date=date.today()
     ))
 
-# ADD A JOB TO THE TRACKER
 @router.post("/add")
 def add_tracked_job(req: TrackRequest):
     if req.status not in TRACKER_STATUSES:
