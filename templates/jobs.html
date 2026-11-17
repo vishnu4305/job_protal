@@ -1,0 +1,95 @@
+{% extends "base.html" %} {% block title %}Find Jobs | TalentHub{% endblock %}
+{% block content %}
+<section class="page-banner">
+  <div class="container">
+    <p class="eyebrow">OPPORTUNITIES FOR YOU</p>
+    <h1>Find your next job</h1>
+    <p>
+      Search open roles, apply directly and save opportunities to your Wishlist.
+    </p>
+  </div>
+</section>
+<section class="section">
+  <div class="container">
+    <form action="/jobs" method="get" class="search-form search-form-light">
+      {% if job_type %}<input
+        type="hidden"
+        name="job_type"
+        value="{{ job_type }}"
+      />{% endif %}{% if company %}<input
+        type="hidden"
+        name="company"
+        value="{{ company }}"
+      />{% endif %}<input
+        name="keyword"
+        value="{{ keyword }}"
+        placeholder="Job title or skills"
+      /><input
+        name="location"
+        value="{{ location }}"
+        placeholder="City or location"
+      /><button class="btn btn-primary">Search</button>
+    </form>
+    {% if request.query_params.get('tracker_message') %}
+    <div class="notice success">
+      {{ request.query_params.get('tracker_message') }}
+    </div>
+    {% endif %} {% if job_type or company %}
+    <p class="filter-note">
+      Filtered by: {% if job_type %}<strong>{{ job_type }}</strong>{% endif %}{%
+      if job_type and company %} · {% endif %}{% if company %}<strong
+        >{{ company }}</strong
+      >{% endif %}<a href="/jobs">Clear filter</a>
+    </p>
+    {% endif %}
+    <p class="results-count">{{ jobs|length }} matching job(s)</p>
+    <div class="job-grid">
+      {% for job, company in jobs %}
+      <article class="job-card">
+        <div class="company-mark">{{ company[:1]|upper }}</div>
+        <h3>{{ job.title }}</h3>
+        <p class="company-name">{{ company }}</p>
+        <div class="job-meta">
+          <span>{{ job.location }}</span><span>{{ job.job_type }}</span>
+        </div>
+        <p class="salary">{{ job.salary or 'Salary not specified' }}</p>
+        <div class="job-card-actions">
+          {% if request.cookies.get('candidate_id') %} {% if job.job_id in
+          applied_job_ids %}<button
+            class="btn btn-applied"
+            type="button"
+            disabled
+          >
+            Applied ✓</button
+          >{% else %}
+          <form action="/job/{{ job.job_id }}/apply" method="post">
+            <button class="btn btn-primary" type="submit">Apply</button>
+          </form>
+          {% endif %} {% if job.job_id in saved_job_ids %}
+          <form action="/my-tracker/save/{{ job.job_id }}" method="post">
+            <button class="btn btn-saved" type="submit">♥ Saved</button>
+          </form>
+          {% elif job.job_id not in applied_job_ids %}
+          <form action="/my-tracker/save/{{ job.job_id }}" method="post">
+            <button class="btn btn-outline" type="submit">♡ Save job</button>
+          </form>
+          {% else %}<span class="saved-note">In your tracker</span>{% endif %}
+          {% elif not request.cookies.get('employee_id') %}<a
+            class="btn btn-primary"
+            href="/login"
+            >Login to apply</a
+          ><a class="btn btn-outline" href="/login">Save job</a>{% endif %}
+        </div>
+        <a class="job-details-link" href="/job/{{ job.job_id }}"
+          >View job details →</a
+        >
+      </article>
+      {% else %}
+      <p class="empty-state">
+        No matching jobs found. Try a different title or location.
+      </p>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+{% endblock %}

@@ -1,0 +1,43 @@
+{% extends "base.html" %}{% block title %}Employer Dashboard{% endblock %} {%
+block content %}
+<section class="section dashboard-bg">
+  <div class="container">
+    <div class="dashboard-heading">
+      <div>
+        <p class="eyebrow">EMPLOYER SPACE</p>
+        <h1>{{ employee.company_name }}</h1>
+        <p class="muted">Manage your job postings and candidates.</p>
+      </div>
+      <a class="btn btn-primary" href="/employer/post-job">+ Post a job</a>
+    </div>
+    <div class="stats-grid dashboard-stats">
+      <div class="stat-tile">
+        <strong>{{ total_jobs }}</strong><span>Jobs posted</span>
+      </div>
+      <div class="stat-tile">
+        <strong>{{ total_applications }}</strong
+        ><span>Applications received</span>
+      </div>
+    </div>
+    <div class="panel">
+      <h2>Your job postings</h2>
+      {% for job in jobs %}
+      <div class="application-row">
+        <div>
+          <h3>{{ job.title }}</h3>
+          <p>{{ job.location }} · {{ job.job_type }} · {{ job.salary }}</p>
+          <small>Status: {{ job.status }}</small>
+        </div>
+        <a
+          class="btn btn-outline"
+          href="/employer/job/{{ job.job_id }}/applications"
+          >View applicants</a
+        >
+      </div>
+      {% else %}
+      <p class="muted">You haven't posted any jobs yet.</p>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+{% endblock %}

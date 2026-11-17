@@ -1,0 +1,148 @@
+{% extends "base.html" %} {% block title %}My Job Tracker | TalentHub{% endblock
+%} {% block content %}
+<section class="page-banner tracker-banner">
+  <div class="container">
+    <p class="eyebrow">CANDIDATE WORKSPACE</p>
+    <h1>My Job Tracker</h1>
+    <p>
+      Save interesting jobs and follow every opportunity through your job
+      search.
+    </p>
+  </div>
+</section>
+<section class="section dashboard-bg">
+  <div class="container">
+    {% if message %}
+    <div class="notice success">{{ message }}</div>
+    {% endif %}
+    <div class="tracker-summary-grid">
+      {% for label in ['Wishlist', 'Applied', 'Interview', 'Offer', 'Rejected']
+      %}
+      <a
+        class="tracker-summary-card {% if selected_status == label %}active{% endif %}"
+        href="/tracker?status={{ label }}"
+        ><span>{{ label }}</span><strong>{{ summary.get(label, 0) }}</strong></a
+      >
+      {% endfor %}
+    </div>
+    <div class="tracker-toolbar">
+      <div>
+        <h2>
+          {% if selected_status %}{{ selected_status }} jobs{% else %}All
+          tracked jobs{% endif %}
+        </h2>
+        <p>
+          {{ tracked_jobs|length }} item(s) shown · {{ total_tracked }} total
+        </p>
+      </div>
+      <a class="text-link" href="/tracker">View all</a>
+    </div>
+    <div class="tracker-add-panel">
+      <div>
+        <h3>Add an external job</h3>
+        <p>
+          Track opportunities you found on LinkedIn, Naukri, Indeed or company
+          career pages.
+        </p>
+      </div>
+      <form
+        action="/my-tracker/add-external"
+        method="post"
+        class="tracker-add-form"
+      >
+        <input name="role" placeholder="Job title / role" required /><input
+          name="company"
+          placeholder="Company name"
+          required
+        /><input
+          name="source"
+          placeholder="Source (e.g. LinkedIn)"
+          value="Manual"
+        /><input name="notes" placeholder="Notes (optional)" /><button
+          class="btn btn-primary"
+          type="submit"
+        >
+          Add to Tracker
+        </button>
+      </form>
+    </div>
+    <div class="tracker-list">
+      {% for item in tracked_jobs %}
+      <article class="tracker-job-card">
+        <div class="tracker-job-main">
+          <div class="company-mark">{{ item.company[:1]|upper }}</div>
+          <div>
+            <h3>{{ item.role }}</h3>
+            <p>
+              {{ item.company }} <span>·</span> {{ item.source }}{% if
+              item.applied_date %}<span> · Applied {{ item.applied_date }}</span
+              >{% endif %}
+            </p>
+            <span class="status-pill status-{{ item.status|lower }}"
+              >{{ item.status }}</span
+            >
+          </div>
+        </div>
+        <div class="tracker-job-controls">
+          <form
+            action="/my-tracker/update/{{ item.tracked_id }}"
+            method="post"
+            class="tracker-update-form"
+          >
+            <label
+              >Status{% if item.job_id %}<input
+                type="hidden"
+                name="status"
+                value="{{ item.status }}"
+              /><span class="tracker-managed-status">{{ item.status }}</span>{%
+              else %}<select name="status">
+                {% for status_option in
+                ['Wishlist','Applied','Interview','Offer','Rejected'] %}
+                <option
+                  value="{{ status_option }}"
+                  {%
+                  if
+                  item.status=""
+                  ="status_option"
+                  %}selected{%
+                  endif
+                  %}
+                >
+                  {{ status_option }}
+                </option>
+                {% endfor %}</select
+              >{% endif %}</label
+            >{% if item.job_id %}<a
+              class="btn btn-outline tracker-view-job"
+              href="/job/{{ item.job_id }}"
+              >View Job</a
+            >{% endif %}<label class="tracker-notes-label"
+              >Notes<input
+                name="notes"
+                value="{{ item.notes or '' }}"
+                placeholder="Add a reminder or note" /></label
+            ><button class="btn btn-outline" type="submit">Update</button>
+          </form>
+          <form
+            action="/my-tracker/delete/{{ item.tracked_id }}"
+            method="post"
+            onsubmit="return confirm('Remove this job from your tracker?');"
+          >
+            <button class="btn btn-danger-outline" type="submit">Remove</button>
+          </form>
+        </div>
+      </article>
+      {% else %}
+      <div class="tracker-empty">
+        <div class="tracker-empty-icon">☆</div>
+        <h3>Your tracker is empty</h3>
+        <p>
+          Save a job from the Jobs page or add an external opportunity above.
+        </p>
+        <a class="btn btn-primary" href="/jobs">Explore jobs</a>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+{% endblock %}

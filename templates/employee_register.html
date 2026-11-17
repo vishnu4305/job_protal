@@ -1,0 +1,29 @@
+{% extends "base.html" %}{% block title %}Employer Registration{% endblock %} {%
+block content %}
+<section class="auth-section">
+  <div class="auth-card">
+    <p class="eyebrow">FOR EMPLOYERS</p>
+    <h1>Create company account</h1>
+    {% if message %}
+    <div class="notice">{{ message }}</div>
+    {% endif %}
+    <form action="/employer/register" method="post" class="form-stack">
+      <label>Company name<input name="company_name" required /></label
+      ><label>Username<input name="username" required /></label
+      ><label>Company email<input type="email" name="email" required /></label
+      ><label
+        >Password<input
+          type="password"
+          name="password"
+          minlength="8"
+          required /></label
+      ><label
+        >Phone number<input name="phone" pattern="[0-9]{10}" required /></label
+      ><button class="btn btn-primary">Register Company</button>
+    </form>
+    <p class="form-foot">
+      Already registered? <a href="/employer/login">Employer login</a>
+    </p>
+  </div>
+</section>
+{% endblock %}

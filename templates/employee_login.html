@@ -1,0 +1,23 @@
+{% extends "base.html" %}{% block title %}Employer Login{% endblock %} {% block
+content %}
+<section class="auth-section">
+  <div class="auth-card">
+    <p class="eyebrow">EMPLOYER SPACE</p>
+    <h1>Employer login</h1>
+    {% if message %}
+    <div class="notice">{{ message }}</div>
+    {% endif %}
+    <form action="/employer/login" method="post" class="form-stack">
+      <label>Username<input name="username" required /></label
+      ><label>Password<input type="password" name="password" required /></label
+      ><button class="btn btn-primary">Login</button>
+    </form>
+    <p class="form-foot">
+      <a href="/forgot-password?role=employer">Forgot password?</a>
+    </p>
+    <p class="form-foot">
+      New company? <a href="/employer/register">Register here</a>
+    </p>
+  </div>
+</section>
+{% endblock %}

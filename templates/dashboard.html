@@ -1,0 +1,80 @@
+{% extends "base.html" %} {% block title %}Candidate Dashboard | TalentHub{%
+endblock %} {% block content %}
+<section class="section dashboard-bg">
+  <div class="container">
+    <div class="dashboard-heading">
+      <div>
+        <p class="eyebrow">CANDIDATE SPACE</p>
+        <h1>Welcome, {{ candidate.full_name }}</h1>
+        <p class="muted">
+          Your profile, applications and saved opportunities in one place.
+        </p>
+      </div>
+      <a class="btn btn-primary" href="/jobs">Explore jobs</a>
+    </div>
+    <div class="stats-grid dashboard-stats">
+      <div class="stat-tile">
+        <strong>{{ total_applications }}</strong><span>Applications</span>
+      </div>
+      <div class="stat-tile">
+        <strong>{{ candidate.experience_years }}</strong
+        ><span>Years experience</span>
+      </div>
+    </div>
+
+    <div class="tracker-dashboard-card">
+      <div class="tracker-dashboard-top">
+        <div>
+          <p class="eyebrow">YOUR JOB SEARCH</p>
+          <h2>My Tracker</h2>
+          <p>
+            Keep your saved jobs and applications organised from Wishlist to
+            Offer.
+          </p>
+        </div>
+        <a class="btn btn-primary" href="/tracker">Open My Tracker&nbsp; →</a>
+      </div>
+      <div class="tracker-mini-stats">
+        {% for label in ['Wishlist', 'Applied', 'Interview', 'Offer',
+        'Rejected'] %}
+        <a class="tracker-mini-stat" href="/tracker?status={{ label }}"
+          ><strong>{{ tracker_summary.get(label, 0) }}</strong
+          ><span>{{ label }}</span></a
+        >
+        {% endfor %}
+      </div>
+      <p class="tracker-dashboard-foot">
+        {{ total_tracked }} job(s) currently in your tracker.
+      </p>
+    </div>
+
+    <div class="panel">
+      <h2>My profile</h2>
+      <div class="profile-grid">
+        <p><b>Username</b>{{ candidate.username }}</p>
+        <p><b>Email</b>{{ candidate.email }}</p>
+        <p><b>Phone</b>{{ candidate.phone }}</p>
+        <p><b>Skills</b>{{ candidate.skills }}</p>
+      </div>
+    </div>
+    <div class="panel">
+      <h2>My applications</h2>
+      {% for application, title, location, salary, company in applications %}
+      <div class="application-row">
+        <div>
+          <h3>{{ title }}</h3>
+          <p>
+            {{ company }} · {{ location }} · {{ salary or 'Salary not specified'
+            }}
+          </p>
+          <small>Applied {{ application.applied_on }}</small>
+        </div>
+        <span class="status-pill">{{ application.status }}</span>
+      </div>
+      {% else %}
+      <p class="muted">You have not applied for any jobs yet.</p>
+      <a href="/jobs" class="text-link">Browse available jobs →</a>{% endfor %}
+    </div>
+  </div>
+</section>
+{% endblock %}

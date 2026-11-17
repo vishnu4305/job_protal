@@ -1,0 +1,68 @@
+{% extends "base.html" %} 
+{% block title %}TalentHub | Find Your Next Opportunity{% endblock %} 
+{% block content %}
+<section class="hero">
+  <div class="container hero-inner">
+    <p class="eyebrow">YOUR CAREER, YOUR NEXT CHAPTER</p>
+    <h1>Find a job that moves<br /><span>you forward.</span></h1>
+    <p class="hero-copy">
+      Discover opportunities from companies looking for your skills.
+    </p>
+    <form action="/jobs" method="get" class="search-form">
+      <input name="keyword" placeholder="Job title or skills" />
+      <input name="location" placeholder="City or location" />
+      <button type="submit" class="btn btn-primary">Search Jobs</button>
+    </form>
+
+    <p class="hero-hint">
+      Popular searches: Python Developer · Java Developer · Internships
+    </p>
+  </div>
+</section>
+<section class="section">
+  <div class="container">
+    <div class="section-heading">
+      <div>
+        <p class="eyebrow">FRESH OPPORTUNITIES</p>
+        <h2>Latest jobs</h2>
+      </div>
+      <a class="text-link" href="/jobs">Explore all jobs →</a>
+    </div>
+    <div class="job-grid">
+      {% for job, company in jobs %}
+      <article class="job-card">
+        <div class="company-mark">{{ company[:1]|upper }}</div>
+        <h3>{{ job.title }}</h3>
+        <p class="company-name">{{ company }}</p>
+        <div class="job-meta">
+          <span>{{ job.location }}</span><span>{{ job.job_type }}</span>
+        </div>
+        <p class="salary">{{ job.salary or 'Salary not specified' }}</p>
+        <a class="btn btn-outline" href="/job/{{ job.job_id }}">View Details</a>
+      </article>
+      {% else %}
+      <p class="empty-state">
+        No open jobs are available yet. Please check again soon.
+      </p>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+<section class="stats-band">
+  <div class="container stats-grid">
+    <div><strong>{{ total_jobs }}</strong><span>Open jobs</span></div>
+    <div><strong>{{ total_candidates }}</strong><span>Job seekers</span></div>
+    <div><strong>{{ total_companies }}</strong><span>Companies</span></div>
+  </div>
+</section>
+<section class="section cta-section">
+  <div class="container cta-box">
+    <div>
+      <p class="eyebrow">READY FOR WHAT'S NEXT?</p>
+      <h2>Your next opportunity starts here.</h2>
+      <p>Create an account and start applying to jobs that fit your goals.</p>
+    </div>
+    <a href="/register" class="btn btn-light">Create Candidate Account</a>
+  </div>
+</section>
+{% endblock %}

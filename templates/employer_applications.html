@@ -1,0 +1,70 @@
+{% extends "base.html" %}{% block title %}Applicants | TalentHub{% endblock %}
+{% block content %}
+<section class="section dashboard-bg">
+  <div class="container">
+    <p class="eyebrow">APPLICANT MANAGEMENT</p>
+    <h1>Applicants for {{ job.title }}</h1>
+    <div class="panel">
+      {% for application, candidate in applications %}
+      <div class="applicant-card">
+        <div>
+          <h2>{{ candidate.full_name }}</h2>
+          <p>{{ candidate.email }} · {{ candidate.phone }}</p>
+          <p>Skills: {{ candidate.skills }}</p>
+          <p>Experience: {{ candidate.experience_years }} years</p>
+          <small>Applied: {{ application.applied_on }}</small>
+          <p>Current status: <b>{{ application.status }}</b></p>
+        </div>
+        <form
+          action="/employer/application/{{ application.application_id }}/status"
+          method="post"
+          class="status-form"
+        >
+          <select name="status">
+            <option
+              {%
+              if
+              application.status=""
+              ="Applied"
+              %}selected{%
+              endif
+              %}
+            >
+              Applied
+            </option>
+            <option
+              {%
+              if
+              application.status=""
+              ="Shortlisted"
+              %}selected{%
+              endif
+              %}
+            >
+              Shortlisted
+            </option>
+            <option
+              {%
+              if
+              application.status=""
+              ="Rejected"
+              %}selected{%
+              endif
+              %}
+            >
+              Rejected
+            </option>
+            <option {% if application.status="" ="Hired" %}selected{% endif %}>
+              Hired
+            </option></select
+          ><button class="btn btn-primary">Update status</button>
+        </form>
+      </div>
+      {% else %}
+      <p class="muted">No candidates have applied for this job yet.</p>
+      {% endfor %}
+    </div>
+    <a href="/employer/dashboard" class="text-link">← Back to dashboard</a>
+  </div>
+</section>
+{% endblock %}

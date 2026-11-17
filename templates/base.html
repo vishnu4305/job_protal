@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}TalentHub{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', path='css/style.css') }}">
+</head>
+<body>
+{% set path = request.url.path %}
+<header class="site-header">
+  <div class="container site-nav">
+
+    <a class="logo" href="/" aria-label="TalentHub home">
+      <span class="logo-mark">T</span>
+      <span class="logo-text">Talent<span class="logo-hub">Hub</span></span>
+    </a>
+    <input type="checkbox" id="nav-toggle" class="nav-toggle" aria-label="Open or close the menu">
+    <label for="nav-toggle" class="nav-burger" aria-hidden="true"><span></span></label>
+    <nav class="menu" aria-label="Main navigation">
+      <a href="/" {% if path == '/' %}aria-current="page"{% endif %}>Home</a>
+      <a href="/jobs" {% if path == '/jobs' or path.startswith('/job/') %}aria-current="page"{% endif %}>Jobs</a>
+      <a href="/categories" {% if path == '/categories' %}aria-current="page"{% endif %}>Categories</a>
+      <a href="/companies" {% if path == '/companies' %}aria-current="page"{% endif %}>Companies</a>
+      <a href="/about" {% if path == '/about' %}aria-current="page"{% endif %}>About</a>
+      <a href="/contact" {% if path == '/contact' %}aria-current="page"{% endif %}>Contact</a>
+    </nav>
+    <div class="nav-auth">
+      {% if request.cookies.get('employee_id') %}
+        <a class="nav-link" href="/employer/dashboard">Dashboard</a>
+        <a class="btn btn-primary btn-nav" href="/employer/post-job">Post a Job</a>
+        <a class="nav-link" href="/employer/logout">Log out</a>
+      {% elif request.cookies.get('candidate_id') %}
+        <a class="nav-link" href="/dashboard">Dashboard</a>
+        <a class="nav-link" href="/logout">Log out</a>
+      {% else %}
+        <a class="nav-link" href="/employer/login">Employers</a>
+        <a class="btn btn-outline btn-nav" href="/login">Log in</a>
+        <a class="btn btn-primary btn-nav" href="/register">Register</a>
+      {% endif %}
+    </div>
+
+  </div>
+</header>
+
+<main>{% block content %}{% endblock %}</main>
+
+<footer class="footer">
+  <div class="container">&copy; 2026 TalentHub. Find opportunities that move you forward.
+  </div>
+</footer>
+
+</body>
+</html>

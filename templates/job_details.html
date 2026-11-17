@@ -1,0 +1,50 @@
+{% extends "base.html" %} {% block title %}Job Details | TalentHub{% endblock %}
+{% block content %}
+<section class="section">
+  <div class="container narrow">
+    {% if message %}
+    <div class="notice">{{ message }}</div>
+    {% elif job %}
+    <article class="detail-card">
+      <p class="eyebrow">JOB OPPORTUNITY</p>
+      <h1>{{ job.title }}</h1>
+      <h3>{{ company_name }}</h3>
+      <div class="job-meta detail-meta">
+        <span>{{ job.location }}</span><span>{{ job.job_type }}</span
+        ><span>{{ job.salary or 'Salary not specified' }}</span>
+      </div>
+      <hr />
+      <h2>Job description</h2>
+      <p class="description">
+        {{ job.description or 'No description provided.' }}
+      </p>
+      {% if application_message %}
+      <div class="notice success">{{ application_message }}</div>
+      {% endif %}
+      <div class="job-card-actions detail-actions">
+        {% if request.cookies.get('candidate_id') %} {% if already_applied
+        %}<button class="btn btn-applied" type="button" disabled>
+          Applied ✓</button
+        >{% else %}
+        <form action="/job/{{ job.job_id }}/apply" method="post">
+          <button class="btn btn-primary">Apply</button>
+        </form>
+        {% endif %} {% if is_saved %}
+        <form action="/my-tracker/save/{{ job.job_id }}" method="post">
+          <button class="btn btn-saved">♥ Saved in Wishlist</button>
+        </form>
+        {% elif not already_applied %}
+        <form action="/my-tracker/save/{{ job.job_id }}" method="post">
+          <button class="btn btn-outline">♡ Save job</button>
+        </form>
+        {% endif %} {% elif not request.cookies.get('employee_id') %}<a
+          class="btn btn-primary"
+          href="/login"
+          >Login to Apply</a
+        ><a class="btn btn-outline" href="/login">Login to Save</a>{% endif %}
+      </div>
+    </article>
+    {% endif %}<a class="text-link back-link" href="/jobs">← Back to jobs</a>
+  </div>
+</section>
+{% endblock %}

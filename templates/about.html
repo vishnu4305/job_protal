@@ -1,0 +1,41 @@
+{% extends "base.html" %} {% block title %}About | TalentHub{% endblock %} {%
+block content %}
+<section class="page-banner">
+  <div class="container">
+    <p class="eyebrow">ABOUT US</p>
+    <h1>About TalentHub</h1>
+    <p>A simple place where candidates and employers meet.</p>
+  </div>
+</section>
+<section class="section">
+  <div class="container">
+    <div class="info-grid">
+      <div class="panel">
+        <h2>For candidates</h2>
+        <p class="muted">
+          Create an account, search open roles, apply in one click and follow
+          every application from your dashboard.
+        </p>
+        <a class="btn btn-outline" href="/register">Create an account</a>
+      </div>
+      <div class="panel">
+        <h2>For employers</h2>
+        <p class="muted">
+          Register your company, post openings and review applicants. Shortlist
+          or hire straight from the portal.
+        </p>
+        <a class="btn btn-outline" href="/employer/register"
+          >Register a company</a
+        >
+      </div>
+      <div class="panel">
+        <h2>Find a job</h2>
+        <p class="muted">
+          Browse every open position, or narrow it down by type or company.
+        </p>
+        <a class="btn btn-primary" href="/jobs">Browse jobs</a>
+      </div>
+    </div>
+  </div>
+</section>
+{% endblock %}

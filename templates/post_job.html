@@ -1,0 +1,36 @@
+{% extends "base.html" %}{% block title %}Post a Job{% endblock %} {% block
+content %}
+<section class="auth-section">
+  <div class="auth-card wide-card">
+    <p class="eyebrow">EMPLOYER SPACE</p>
+    <h1>Post a new job</h1>
+    {% if message %}
+    <div class="notice">{{ message }}</div>
+    {% endif %}
+    <form action="/employer/post-job" method="post" class="form-stack">
+      <label>Job title<input name="title" required /></label
+      ><label
+        >Job description<textarea
+          name="description"
+          rows="6"
+          required
+        ></textarea></label
+      ><label>Location<input name="location" required /></label
+      ><label
+        >Job type<select name="job_type" required>
+          <option value="">Select type</option>
+          <option>Full Time</option>
+          <option>Part Time</option>
+          <option>Internship</option>
+          <option>Contract</option>
+        </select></label
+      ><label
+        >Salary<input
+          name="salary"
+          placeholder="e.g. ₹3–5 LPA"
+          required /></label
+      ><button class="btn btn-primary">Publish job</button>
+    </form>
+  </div>
+</section>
+{% endblock %}

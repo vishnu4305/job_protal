@@ -1,0 +1,32 @@
+{% extends "base.html" %} {% block title %}Categories | TalentHub{% endblock %}
+{% block content %}
+<section class="page-banner">
+  <div class="container">
+    <p class="eyebrow">BROWSE BY TYPE</p>
+    <h1>Job categories</h1>
+    <p>Pick the kind of work you are looking for.</p>
+  </div>
+</section>
+<section class="section">
+  <div class="container">
+    <div class="job-grid">
+      {% for c in categories %}
+      <article class="job-card">
+        <div class="company-mark">{{ c.name[:1]|upper }}</div>
+        <h3>{{ c.name }}</h3>
+        <p class="count">
+          {{ c.open_jobs }} open job{{ "" if c.open_jobs == 1 else "s" }}
+        </p>
+        {% if c.open_jobs %}<a
+          class="btn btn-outline"
+          href="/jobs?job_type={{ c.name|urlencode }}"
+          >View jobs</a
+        >{% else %}<span class="btn btn-outline" aria-disabled="true"
+          >No jobs yet</span
+        >{% endif %}
+      </article>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+{% endblock %}
