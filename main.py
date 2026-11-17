@@ -218,7 +218,7 @@ def register_employee(req: EmployeeRequest):
             "message": "Username already exists"
         }
     # Check email
-    existing_employee = session.query(Employee).filter(Employee.email == email+).first()
+    existing_employee = session.query(Employee).filter(Employee.email == email).first()
     if existing_employee:
         session.close()
         return {
