@@ -1,14 +1,8 @@
 from database import Base
-from sqlalchemy import Column, Integer, String, Text, TIMESTAMP, ForeignKey
-
-# create table tablename (col datatypes );
-# to create a column in ORM we create a col object using Column
-# default, notnull, unique, check, primaryKey, autoincrement
-
+from sqlalchemy import Column, Integer, String, Text, TIMESTAMP, ForeignKey, Date
 
 class Candidate(Base): # Create a SQLAlchemy ORM model called Candidate.
     __tablename__ = "candidates" #This Python class represents the existing MySQL candidates table.
-
     candidate_id = Column(Integer, primary_key=True, autoincrement=True) 
     full_name = Column(String(100), nullable=False) 
     username = Column(String(50), nullable=False, unique=True) 
@@ -29,11 +23,8 @@ class Employee(Base):
     email = Column( String(100), nullable=False, unique=True ) 
     phone = Column( String(15) )
 
-
 class Job(Base):
-    """Represents the jobs table."""
     __tablename__ = "jobs"
-    
     job_id = Column(Integer, primary_key=True, autoincrement=True)
     employee_id = Column(Integer, ForeignKey("employees.employee_id"))
     title = Column(String(150), nullable=False)
@@ -44,13 +35,22 @@ class Job(Base):
     status = Column(String(10), default="Open")
     posted_on = Column(TIMESTAMP, server_default="current_timestamp")
 
-
 class Application(Base):
-    """Represents the applications table."""
     __tablename__ = "applications"
-    
     application_id = Column(Integer, primary_key=True, autoincrement=True)
     job_id = Column(Integer, ForeignKey("jobs.job_id"), nullable=False)
     candidate_id = Column(Integer, ForeignKey("candidates.candidate_id"), nullable=False)
     status = Column(String(50), default="Not Applied")
     applied_on = Column(TIMESTAMP, server_default="current_timestamp")
+
+class TrackedJob(Base):
+    __tablename__ = "tracked_jobs"
+    tracked_id = Column(Integer, primary_key=True, autoincrement=True)
+    candidate_id = Column(Integer, ForeignKey("candidates.candidate_id"), nullable=False)
+    job_id = Column(Integer, ForeignKey("jobs.job_id"), nullable=True)   # NULL for external jobs
+    company = Column(String(100), nullable=False)
+    role = Column(String(100), nullable=False)
+    source = Column(String(50), default="Manual")     
+    status = Column(String(20), nullable=False, default="Wishlist")
+    applied_date = Column(Date)
+    notes = Column(String(500))

@@ -10,8 +10,8 @@
       <h1>{{ job.title }}</h1>
       <h3>{{ company_name }}</h3>
       <div class="job-meta detail-meta">
-        <span>{{ job.location }}</span><span>{{ job.job_type }}</span
-        ><span>{{ job.salary or 'Salary not specified' }}</span>
+        <span>{{ job.location }}</span><span>{{ job.job_type }}</span>
+        <span>{{ job.salary or 'Salary not specified' }}</span>
       </div>
       <hr />
       <h2>Job description</h2>
@@ -22,10 +22,10 @@
       <div class="notice success">{{ application_message }}</div>
       {% endif %}
       <div class="job-card-actions detail-actions">
-        {% if request.cookies.get('candidate_id') %} {% if already_applied
-        %}<button class="btn btn-applied" type="button" disabled>
-          Applied ✓</button
-        >{% else %}
+        {% if request.cookies.get('candidate_id') %} {% if already_applied %}
+        <button class="btn btn-applied" type="button" disabled>
+           Applied </button>
+        {% else %}
         <form action="/job/{{ job.job_id }}/apply" method="post">
           <button class="btn btn-primary">Apply</button>
         </form>
@@ -37,14 +37,13 @@
         <form action="/my-tracker/save/{{ job.job_id }}" method="post">
           <button class="btn btn-outline">♡ Save job</button>
         </form>
-        {% endif %} {% elif not request.cookies.get('employee_id') %}<a
-          class="btn btn-primary"
-          href="/login"
-          >Login to Apply</a
-        ><a class="btn btn-outline" href="/login">Login to Save</a>{% endif %}
+
+        {% endif %} {% elif not request.cookies.get('employee_id') %}
+        <a class="btn btn-primary" href="/login">Login to Apply</a>
+        <a class="btn btn-outline" href="/login">Login to Save</a>{% endif %}
       </div>
     </article>
-    {% endif %}<a class="text-link back-link" href="/jobs">← Back to jobs</a>
+    {% endif %}<a class="text-link back-link" href="/jobs"> Back to jobs</a>
   </div>
 </section>
 {% endblock %}

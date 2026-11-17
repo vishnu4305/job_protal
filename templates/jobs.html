@@ -12,23 +12,15 @@
 <section class="section">
   <div class="container">
     <form action="/jobs" method="get" class="search-form search-form-light">
-      {% if job_type %}<input
-        type="hidden"
-        name="job_type"
-        value="{{ job_type }}"
-      />{% endif %}{% if company %}<input
-        type="hidden"
-        name="company"
-        value="{{ company }}"
-      />{% endif %}<input
-        name="keyword"
-        value="{{ keyword }}"
-        placeholder="Job title or skills"
-      /><input
-        name="location"
-        value="{{ location }}"
-        placeholder="City or location"
-      /><button class="btn btn-primary">Search</button>
+      {% if job_type %}
+      <input type="hidden" name="job_type" value="{{ job_type }}"/>
+      {% endif %}
+      {% if company %}
+      <input type="hidden" name="company" value="{{ company }}">
+      {% endif %}
+      <input name="keyword" value="{{ keyword }}" placeholder="Job title or skills"/>
+      <input name="location" value="{{ location }}" placeholder="City or location"/>
+      <button class="btn btn-primary">Search</button>
     </form>
     {% if request.query_params.get('tracker_message') %}
     <div class="notice success">
@@ -36,10 +28,10 @@
     </div>
     {% endif %} {% if job_type or company %}
     <p class="filter-note">
-      Filtered by: {% if job_type %}<strong>{{ job_type }}</strong>{% endif %}{%
-      if job_type and company %} · {% endif %}{% if company %}<strong
-        >{{ company }}</strong
-      >{% endif %}<a href="/jobs">Clear filter</a>
+      Filtered by: {% if job_type %}<strong>{{ job_type }}</strong>
+      {% endif %}{% if job_type and company %} · {% endif %}
+      {% if company %}<strong>{{ company }}</strong>
+      {% endif %}<a href="/jobs">Clear filter</a>
     </p>
     {% endif %}
     <p class="results-count">{{ jobs|length }} matching job(s)</p>
@@ -55,13 +47,13 @@
         <p class="salary">{{ job.salary or 'Salary not specified' }}</p>
         <div class="job-card-actions">
           {% if request.cookies.get('candidate_id') %} {% if job.job_id in
-          applied_job_ids %}<button
+          applied_job_ids %}
+          <button
             class="btn btn-applied"
             type="button"
-            disabled
-          >
-            Applied ✓</button
-          >{% else %}
+            disabled >
+            Applied </button>
+            {% else %}
           <form action="/job/{{ job.job_id }}/apply" method="post">
             <button class="btn btn-primary" type="submit">Apply</button>
           </form>

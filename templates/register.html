@@ -9,32 +9,32 @@
     <div class="notice">{{ message }}</div>
     {% endif %}
     <form action="/register" method="post" class="form-stack">
-      <label>Full name<input name="full_name" required /></label
-      ><label>Username<input name="username" required /></label
-      ><label>Email<input type="email" name="email" required /></label
-      ><label
-        >Password<input
-          type="password"
-          name="password"
-          minlength="8"
-          required /></label
-      ><label
+      <label>Full name<input name="full_name" required /></label>
+      <label>Username<input name="username" required /></label>
+      <label>Email<input type="email" name="email" required /></label>
+      <label>Password<input type="password" name="password" minlength="8"required /></label>
+      <label
         >Phone number<input name="phone" pattern="[0-9]{10}" required /></label
-      ><label
+      >
+      <label
         >Skills<input
           name="skills"
           placeholder="Python, SQL, FastAPI"
           required /></label
-      ><label
+      >
+      <label
         >Experience (years)<input
           type="number"
           name="experience_years"
           min="0"
           value="0"
           required /></label
-      ><button class="btn btn-primary">Create Account</button>
+      >
+      <button class="btn btn-primary">Create Account</button>
     </form>
-    <p class="form-foot">Already registered? <a href="/login">Login</a></p>
+    <p class="form-foot">Already registered? 
+      <a href="/login">Login</a>
+    </p>
   </div>
 </section>
 {% endblock %}

@@ -1,15 +1,29 @@
 from database import get_session
 from models import *
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, Form
+from fastapi.responses import RedirectResponse
+from sqlalchemy import func
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
+from datetime import date
 from validation import *
+from tracker import router as tracker_router, sync_tracker
 
+app = FastAPI(title="Job Portal")
+app.mount("/static", StaticFiles(directory="static"), name="static")
+templates = Jinja2Templates(directory="templates")
 
-app = FastAPI()
+def get_cookie_id(request: Request, cookie_name: str):
+    value = request.cookies.get(cookie_name)
+    try:
+        return int(value) if value else None
+    except (TypeError, ValueError):
+        return None
 
+app.include_router(tracker_router)
 
 # PYDANTIC MODELS
-#---------------------------------------------------------------------------------------------------
 # Candidate registration request
 class CandidateRequest(BaseModel):
     full_name: str
@@ -20,12 +34,10 @@ class CandidateRequest(BaseModel):
     skills: str
     experience_years: int
 
-
 # Candidate login request
 class CandidateLoginRequest(BaseModel):
     username: str
     password: str
-
 
 # Employee registration request
 class EmployeeRequest(BaseModel):
@@ -35,12 +47,10 @@ class EmployeeRequest(BaseModel):
     password: str
     phone: str
 
-
 # Employee login request
 class EmployeeLoginRequest(BaseModel):
     username: str
     password: str
-
 
 # Job request
 class JobRequest(BaseModel):
@@ -51,12 +61,10 @@ class JobRequest(BaseModel):
     job_type: str
     salary: str
 
-
 # Apply job request
 class ApplicationRequest(BaseModel):
     candidate_id: int
     job_id: int
-
 
 # Update application status request
 class ApplicationStatusRequest(BaseModel):
@@ -64,22 +72,31 @@ class ApplicationStatusRequest(BaseModel):
     application_id: int
     status: str
 
-#---------------------------------------------------------------------------------------------------
 # Home Page
-
 @app.get("/")
-def home():
-
-    return {
-        "message": "This is home page"
-    }
-
+def home(request: Request):
+    session = get_session()
+    try:
+        jobs = session.query(
+            Job, Employee.company_name
+        ).join(Employee, Job.employee_id == Employee.employee_id).filter(
+            Job.status == "Open"
+        ).order_by(Job.posted_on.desc()).limit(6).all()
+        return templates.TemplateResponse(
+            request=request, name="index.html",
+            context={
+                "jobs": jobs,
+                "total_jobs": session.query(Job).filter(Job.status == "Open").count(),
+                "total_candidates": session.query(Candidate).count(),
+                "total_companies": session.query(Employee).count(),
+            }
+        )
+    finally:
+        session.close()
 
 # CANDIDATE REGISTER PAGE
-
 @app.post("/register_candidate")
 def register_candidate(req: CandidateRequest):
-
     full_name = req.full_name.strip()
     username = req.username.strip()
     email = req.email.strip()
@@ -87,58 +104,33 @@ def register_candidate(req: CandidateRequest):
     phone = req.phone.strip()
     skills = req.skills.strip()
     experience_years = req.experience_years
-
-    # Check full name
-    if full_name == "":
+    if full_name == "":    # Check full name
         return {"message": "Full name cannot be empty" }
-
-    # Check username
-    if username == "":
+    if username == "":     # Check username
         return {"message": "Username cannot be empty"}
-
-    # Check email
-    if not is_valid_email(email):
+    if not is_valid_email(email):# Check email
         return {"message": "Invalid email format"}
-
-    # Check phone
-    if not is_valid_phone(phone):
+    if not is_valid_phone(phone):# Check phone
         return { "message": "Phone number must be exactly 10 digits"}
-
-    # Check password
-    if not is_valid_password(password):
-        return {
-            "message": "Password must contain at least 8 characters, one letter and one number"
-        }
-
-    # Check skills
-    if skills == "":
+    if not is_valid_password(password):# Check password
+        return { "message": "Password must contain at least 8 characters, one letter and one number"}
+    if skills == "":   # Check skills
         return { "message": "Skills cannot be empty"}
-
-    # Check experience
-    if experience_years < 0:
-        return {
-            "message": "Experience cannot be negative"
-        }
-
+    if experience_years < 0:# Check experience
+        return { "message": "Experience cannot be negative"}
     session = get_session()
-
     # Check username
     existing_candidate = session.query(Candidate).filter(Candidate.username == username).first()
-
     if existing_candidate:
         session.close()
         return {
             "message": "Username already exists"
         }
-
     # Check email
     existing_candidate = session.query(Candidate).filter(Candidate.email == email).first()
     if existing_candidate:
         session.close()
-        return {
-            "message": "Email already exists"
-        }
-
+        return {"message": "Email already exists"}
     # Create candidate
     candidate = Candidate(
         full_name=full_name,
@@ -149,98 +141,66 @@ def register_candidate(req: CandidateRequest):
         skills=skills,
         experience_years=experience_years
     )
-
     session.add(candidate)
     session.commit()
-
     candidate_id = candidate.candidate_id
-
     session.close()
-
     return {
         "message": "Candidate registered successfully",
         "candidate_id": candidate_id
     }
 
-
 # CANDIDATE LOGIN
-
 @app.post("/login_candidate")
 def login_candidate(req: CandidateLoginRequest):
-
     username = req.username.strip()
     password = req.password.strip()
-
     # Check username
     if username == "":
-        return {
-            "message": "Username cannot be empty"
-        }
-
+        return {"message": "Username cannot be empty"}
     # Check password
     if password == "":
-        return {
-            "message": "Password cannot be empty"
-        }
-
+        return {"message": "Password cannot be empty"}
     session = get_session()
-
-    # Find candidate
-    user = session.query(
-        Candidate
-    ).filter(
-        Candidate.username == username,
-        Candidate.password == password
-    ).first()
-
-    session.close()
-
+    # Find candidate in MySQL database
+    user = session.query(Candidate).filter(Candidate.username == username).first()
+    if not user or password != user.password:
+        user = None
     if user:
-
-        return {
+        response_data = {
             "message": f"Welcome, {user.full_name}!",
             "candidate_id": user.candidate_id,
             "full_name": user.full_name
         }
-
+    else:
+        response_data = None
+    session.close()
+    if response_data:
+        return response_data
     return {
         "message": "Invalid username or password."
     }
 
-
 # EMPLOYEE REGISTER
-
 @app.post("/register_employee")
 def register_employee(req: EmployeeRequest):
-
     company_name = req.company_name.strip()
     username = req.username.strip()
     email = req.email.strip()
     password = req.password.strip()
     phone = req.phone.strip()
-
     # Check company name
     if company_name == "":
-        return {
-            "message": "Company name cannot be empty"
-        }
-
+        return {"message": "Company name cannot be empty"}
     # Check username
     if username == "":
         return { "message": "Username cannot be empty"}
-
     # Check email
     if not is_valid_email(email):
-        return {
-            "message": "Invalid email format"
-        }
-
+        return {"message": "Invalid email format" }
     # Check phone
     if not is_valid_phone(phone):
-        return {
-            "message": "Phone number must be exactly 10 digits"
-        }
-
+        return {"message": "Phone number must be exactly 10 digits"}
     # Check password
     if not is_valid_password(password):
         return {
@@ -249,39 +209,21 @@ def register_employee(req: EmployeeRequest):
                 "8 characters, one letter and one number"
             )
         }
-
     session = get_session()
-
     # Check username
-    existing_employee = session.query(
-        Employee
-    ).filter(
-        Employee.username == username
-    ).first()
-
+    existing_employee = session.query(Employee).filter(Employee.username == username).first()
     if existing_employee:
-
         session.close()
-
         return {
             "message": "Username already exists"
         }
-
     # Check email
-    existing_employee = session.query(
-        Employee
-    ).filter(
-        Employee.email == email
-    ).first()
-
+    existing_employee = session.query(Employee).filter(Employee.email == email+).first()
     if existing_employee:
-
         session.close()
-
         return {
             "message": "Email already exists"
         }
-
     # Create employee
     employee = Employee(
         company_name=company_name,
@@ -290,95 +232,74 @@ def register_employee(req: EmployeeRequest):
         email=email,
         phone=phone
     )
-
     session.add(employee)
     session.commit()
-
     employee_id = employee.employee_id
-
     session.close()
-
     return {
         "message": "Employer registered successfully",
         "employee_id": employee_id
     }
 
-
 # EMPLOYEE LOGIN
-
 @app.post("/login_employee")
 def login_employee(req: EmployeeLoginRequest):
-
     username = req.username.strip()
     password = req.password.strip()
-
     # Check username
     if username == "":
         return {
             "message": "Username cannot be empty"
         }
-
     # Check password
     if password == "":
         return {
             "message": "Password cannot be empty"
         }
-
     session = get_session()
-
     # Find employee
-    user = session.query(
-        Employee
-    ).filter(
-        Employee.username == username,
-        Employee.password == password
-    ).first()
-
-    session.close()
-
+    user = session.query(Employee).filter(Employee.username == username).first()
+    if not user or password != user.password:
+        user = None
     if user:
-
-        return {
+        response_data = {
             "message": f"Welcome, {user.company_name}!",
             "employee_id": user.employee_id,
             "company_name": user.company_name
         }
-
+    else:
+        response_data = None
+    session.close()
+    if response_data:
+        return response_data
     return {
         "message": "Invalid username or password."
     }
 
-
 # ADD JOB
-
 @app.post("/add_job")
 def add_job(req: JobRequest):
-
     employee_id = req.employee_id
     title = req.title.strip()
     description = req.description.strip()
     location = req.location.strip()
     job_type = req.job_type.strip()
     salary = req.salary.strip()
-
     # Check title
     if title == "":
         return {
             "message": "Job title cannot be empty"
         }
-
     # Check description
     if description == "":
         return {
             "message": "Job description cannot be empty"
         }
-
     # Check location
     if location == "":
         return {
             "message": "Location cannot be empty"
         }
-
     # Check job type
     valid_job_types = [
         "Full Time",
@@ -386,35 +307,27 @@ def add_job(req: JobRequest):
         "Internship",
         "Contract"
     ]
-
     if job_type not in valid_job_types:
         return {
             "message": "Invalid job type"
         }
-
     # Check salary
     if salary == "":
         return {
             "message": "Salary cannot be empty"
         }
-
     session = get_session()
-
     # Check employee
     employee = session.query(
         Employee
     ).filter(
         Employee.employee_id == employee_id
     ).first()
-
     if not employee:
-
         session.close()
-
         return {
             "message": "Employee not found"
         }
-
     # Create job
     job = Job(
         employee_id=employee_id,
@@ -424,27 +337,19 @@ def add_job(req: JobRequest):
         job_type=job_type,
         salary=salary
     )
-
     session.add(job)
     session.commit()
-
     job_id = job.job_id
-
     session.close()
-
     return {
         "message": "Job added successfully",
         "job_id": job_id
     }
 
-
 # VIEW JOBS
-
 @app.get("/view_jobs")
 def view_jobs():
-
     session = get_session()
-
     jobs = session.query(
         Job.job_id,
         Job.title,
@@ -460,18 +365,13 @@ def view_jobs():
     ).order_by(
         Job.posted_on.desc()
     ).all()
-
     session.close()
-
     if not jobs:
         return {
             "message": "No jobs available."
         }
-
     result = []
-
     for job in jobs:
-
         result.append({
             "job_id": job.job_id,
             "title": job.title,
@@ -480,37 +380,20 @@ def view_jobs():
             "job_type": job.job_type,
             "salary": job.salary
         })
-
     return {
         "jobs": result
     }
 
-
 # SEARCH JOBS
-
 @app.get("/search_jobs")
 def search_jobs(keyword: str):
-
     keyword = keyword.strip()
-
     if keyword == "":
         return {
             "message": "Search keyword cannot be empty"
         }
-
-    # Example:
-    # keyword = "python"
-    # search_value = "%python%"
-    #
-    # This can match:
-    # Python Developer
-    # Senior Python Developer
-    # Python Backend Developer
-
     search_value = f"%{keyword}%"
-
     session = get_session()
-
     jobs = session.query(
         Job.job_id,
         Job.title,
@@ -528,18 +411,13 @@ def search_jobs(keyword: str):
         (Job.location.like(search_value)) |
         (Job.description.like(search_value))
     ).all()
-
     session.close()
-
     if not jobs:
         return {
             "message": "No matching jobs found."
         }
-
     result = []
-
     for job in jobs:
-
         result.append({
             "job_id": job.job_id,
             "title": job.title,
@@ -548,29 +426,20 @@ def search_jobs(keyword: str):
             "job_type": job.job_type,
             "salary": job.salary
         })
-
     return {
         "jobs": result
     }
 
-
 # SORT JOBS
-
 @app.get("/sort_jobs")
 def sort_jobs(sort_by: str):
-
     sort_by = sort_by.strip().lower()
-
     if sort_by not in ["title", "latest"]:
         return {
             "message": "Invalid sort option. Use title or latest."
         }
-
     session = get_session()
-
-    # Sort jobs alphabetically by title
     if sort_by == "title":
-
         jobs = session.query(
             Job.job_id,
             Job.title,
@@ -578,18 +447,8 @@ def sort_jobs(sort_by: str):
             Job.location,
             Job.job_type,
             Job.salary
-        ).join(
-            Employee,
-            Job.employee_id == Employee.employee_id
-        ).filter(
-            Job.status == "Open"
-        ).order_by(
-            Job.title.asc()
-        ).all()
-
-    # Sort jobs by latest posted
+        ).join(Employee,Job.employee_id == Employee.employee_id).filter(Job.status == "Open").order_by(Job.title.asc()).all()
     else:
-
         jobs = session.query(
             Job.job_id,
             Job.title,
@@ -597,26 +456,14 @@ def sort_jobs(sort_by: str):
             Job.location,
             Job.job_type,
             Job.salary
-        ).join(
-            Employee,
-            Job.employee_id == Employee.employee_id
-        ).filter(
-            Job.status == "Open"
-        ).order_by(
-            Job.posted_on.desc()
-        ).all()
-
+        ).join(Employee, Job.employee_id == Employee.employee_id).filter(Job.status == "Open").order_by(Job.posted_on.desc()).all()
     session.close()
-
     if not jobs:
         return {
             "message": "No jobs available."
         }
-
     result = []
-
     for job in jobs:
-
         result.append({
             "job_id": job.job_id,
             "title": job.title,
@@ -625,53 +472,32 @@ def sort_jobs(sort_by: str):
             "job_type": job.job_type,
             "salary": job.salary
         })
-
     return {
         "jobs": result
     }
 
-
 # APPLY FOR JOB
-
 @app.post("/apply_for_job")
 def apply_for_job(req: ApplicationRequest):
-
     candidate_id = req.candidate_id
     job_id = req.job_id
-
     session = get_session()
-
-    # Check candidate
-    candidate = session.query(
-        Candidate
-    ).filter(
-        Candidate.candidate_id == candidate_id
-    ).first()
-
+    candidate = session.query(Candidate ).filter( Candidate.candidate_id == candidate_id).first()
     if not candidate:
-
         session.close()
-
         return {
             "message": "Candidate not found"
         }
-
     # Check job
-    job = session.query(
-        Job
-    ).filter(
+    job = session.query( Job ).filter(
         Job.job_id == job_id,
         Job.status == "Open"
     ).first()
-
     if not job:
-
         session.close()
-
         return {
             "message": "Job not found."
         }
-
     # Check whether candidate already applied
     existing_application = session.query(
         Application
@@ -679,42 +505,32 @@ def apply_for_job(req: ApplicationRequest):
         Application.job_id == job_id,
         Application.candidate_id == candidate_id
     ).first()
-
     if existing_application:
-
         session.close()
-
         return {
             "message": "You have already applied for this job."
         }
-
     # Create application
     application = Application(
         job_id=job_id,
         candidate_id=candidate_id,
         status="Applied"
     )
-
     session.add(application)
+    # Keep the candidate's tracker in sync
+    sync_tracker(session, candidate_id, job_id, "Applied")
     session.commit()
-
     application_id = application.application_id
-
     session.close()
-
     return {
         "message": "Application submitted successfully!",
         "application_id": application_id
     }
 
-
 # VIEW MY APPLICATIONS
-
 @app.get("/my_applications")
 def view_my_applications(candidate_id: int):
-
     session = get_session()
-
     applications = session.query(
         Application.application_id,
         Job.title,
@@ -733,19 +549,13 @@ def view_my_applications(candidate_id: int):
     ).order_by(
         Application.applied_on.desc()
     ).all()
-
     session.close()
-
     if not applications:
-
         return {
             "message": "You have not applied for any jobs."
         }
-
     result = []
-
     for application in applications:
-
         result.append({
             "application_id": application.application_id,
             "job": application.title,
@@ -754,14 +564,11 @@ def view_my_applications(candidate_id: int):
             "status": application.status,
             "applied_on": application.applied_on
         })
-
     return {
         "applications": result
     }
 
-
 # VIEW APPLICATIONS FOR EMPLOYER
-
 @app.get("/view_applications")
 def view_applications(
     employee_id: int,
@@ -769,7 +576,6 @@ def view_applications(
 ):
 
     session = get_session()
-
     # Check whether the job belongs to this employee
     job = session.query(Job).filter(Job.job_id == job_id,Job.employee_id == employee_id).first()
     if not job:
@@ -777,7 +583,6 @@ def view_applications(
         return {
             "message": "This job does not belong to your company."
         }
-
     # Get applications for the selected job
     applications = session.query(
         Application.application_id,
@@ -794,19 +599,13 @@ def view_applications(
     ).filter(
         Application.job_id == job_id
     ).all()
-
     session.close()
-
     if not applications:
-
         return {
             "message": "No applications found."
         }
-
     result = []
-
     for application in applications:
-
         result.append({
             "application_id": application.application_id,
             "candidate": application.full_name,
@@ -817,33 +616,24 @@ def view_applications(
             "status": application.status,
             "applied_on": application.applied_on
         })
-
     return {
         "applications": result
     }
-
-
-# UPDATE APPLICATION STATUS
 
 @app.put("/update_application_status")
 def update_application_status(
     req: ApplicationStatusRequest
 ):
-
     application_id = req.application_id
     employee_id = req.employee_id
     new_status = req.status.strip()
-
     valid_statuses = [
         "Applied",
         "Shortlisted",
         "Rejected",
         "Hired"
     ]
-
-    # Check application status
     if new_status not in valid_statuses:
-
         return {
             "message": (
                 "Invalid status. "
@@ -851,688 +641,615 @@ def update_application_status(
                 "Rejected or Hired."
             )
         }
-
     session = get_session()
-
     # Find application belonging to this employee
-    application = session.query(
-        Application
-    ).join(
-        Job,
-        Application.job_id == Job.job_id
-    ).filter(
+    application = session.query(Application).join(Job, Application.job_id == Job.job_id).filter(
         Application.application_id == application_id,
         Job.employee_id == employee_id
     ).first()
-
     if not application:
-
         session.close()
-
         return {
             "message": (
                 "Application not found "
                 "or does not belong to you."
             )
         }
-
     # Update application status
     application.status = new_status
-
+    # Keep the candidate's tracker in sync
+    sync_tracker(session, application.candidate_id, application.job_id, new_status)
     # Save changes
     session.commit()
-
     session.close()
-
     return {
         "message": "Application status updated successfully!"
     }
 
-#Ols code ......................
+#HTML FRONTEND ROUTES
+@app.get("/jobs")
+def jobs_page(request: Request, keyword: str = "", location: str = "", job_type: str = "", company: str = ""):
+    session = get_session()
+    try:
+        query = session.query(Job, Employee.company_name).join(
+            Employee, Job.employee_id == Employee.employee_id
+        ).filter(Job.status == "Open")
+        if keyword.strip():
+            term = f"%{keyword.strip()}%"
+            query = query.filter((Job.title.like(term)) | (Job.description.like(term)))
+        if location.strip():
+            query = query.filter(Job.location.like(f"%{location.strip()}%"))
+        # Filters used by the Categories and Companies pages
+        if job_type.strip():
+            query = query.filter(Job.job_type == job_type.strip())
+        if company.strip():
+            query = query.filter(Employee.company_name == company.strip())
+        jobs = query.order_by(Job.posted_on.desc()).all()
+        candidate_id = get_cookie_id(request, "candidate_id")
+        applied_job_ids = set()
+        saved_job_ids = set()
+        if candidate_id:
+            applied_job_ids = {row[0] for row in session.query(Application.job_id).filter(
+                Application.candidate_id == candidate_id
+            ).all()}
+            saved_job_ids = {row[0] for row in session.query(TrackedJob.job_id).filter(
+                TrackedJob.candidate_id == candidate_id,
+                TrackedJob.job_id.isnot(None), TrackedJob.status == "Wishlist"
+            ).all()}
+        return templates.TemplateResponse(
+            request=request, name="jobs.html",
+            context={"jobs": jobs, "keyword": keyword, "location": location,
+                     "job_type": job_type.strip(), "company": company.strip(),
+                     "applied_job_ids": applied_job_ids, "saved_job_ids": saved_job_ids}
+        )
+    finally:
+        session.close()
+# CATEGORIES PAGE (open jobs grouped by job type)
+@app.get("/categories")
+def categories_page(request: Request):
+    session = get_session()
+    try:
+        rows = session.query(Job.job_type, func.count(Job.job_id)).filter(
+            Job.status == "Open"
+        ).group_by(Job.job_type).all()
+        counts = {job_type: total for job_type, total in rows if job_type}
+        # Always show the four standard types, then any other type found in the data
+        names = ["Full Time", "Part Time", "Internship", "Contract"]
+        names += sorted(t for t in counts if t not in names)
+        categories = [{"name": n, "open_jobs": counts.get(n, 0)} for n in names]
+        return templates.TemplateResponse(
+            request=request, name="categories.html", context={"categories": categories}
+        )
+    finally:
+        session.close()
+# COMPANIES PAGE (every employer with its number of open jobs)
+@app.get("/companies")
+def companies_page(request: Request):
+    session = get_session()
+    try:
+        rows = session.query(
+            Employee.company_name, func.count(Job.job_id)
+        ).outerjoin(
+            Job, (Job.employee_id == Employee.employee_id) & (Job.status == "Open")
+        ).group_by(Employee.employee_id, Employee.company_name).all()
+        companies = sorted(
+            [{"name": name, "open_jobs": total} for name, total in rows],
+            key=lambda c: (-c["open_jobs"], c["name"].lower())
+        )
+        return templates.TemplateResponse(
+            request=request, name="companies.html", context={"companies": companies}
+        )
+    finally:
+        session.close()
 
+# ABOUT AND CONTACT PAGES
+@app.get("/about")
+def about_page(request: Request):
+    return templates.TemplateResponse(request=request, name="about.html", context={})
 
-# def register_candidate():
-#     print("\n" + "=" * 15)
-#     print("CANDIDATE REGISTRATION")
-#     print("=" * 15)
-#     name = get_non_empty_input("Full Name: ")
-#     username = get_non_empty_input("Username: ")
-#     email = get_valid_email("Email: ")
-#     password = get_valid_password("Password: ")
-#     phone = get_valid_phone("Phone: ")
-#     skills = get_non_empty_input("Skills (example: Python, MySQL): ")
-#     experience = get_valid_number("Years of Experience: ")
+@app.get("/contact")
+def contact_page(request: Request):
+    return templates.TemplateResponse(request=request, name="contact.html", context={})
 
-#     # Check username
-#     cursor.execute(
-#         """
-#         SELECT candidate_id
-#         FROM candidates
-#         WHERE username = %s
-#         """,
-#         (username,)
-#     )
+@app.get("/job/{job_id}")
+def job_details(request: Request, job_id: int, application_message: str = ""):
+    session = get_session()
+    try:
+        result = session.query(Job, Employee.company_name).join(
+            Employee, Job.employee_id == Employee.employee_id
+        ).filter(Job.job_id == job_id, Job.status == "Open").first()
+        if not result:
+            return templates.TemplateResponse(
+                request=request, name="job_details.html",
+                context={"job": None, "message": "Job not found or no longer available."},
+                status_code=404
+            )
+        job, company_name = result
+        candidate_id = get_cookie_id(request, "candidate_id")
+        already_applied = False
+        is_saved = False
+        if candidate_id:
+            already_applied = session.query(Application).filter(
+                Application.job_id == job_id, Application.candidate_id == candidate_id
+            ).first() is not None
+            is_saved = session.query(TrackedJob).filter(
+                TrackedJob.job_id == job_id, TrackedJob.candidate_id == candidate_id,
+                TrackedJob.status == "Wishlist"
+            ).first() is not None
+        return templates.TemplateResponse(
+            request=request, name="job_details.html",
+            context={"job": job, "company_name": company_name,
+                     "message": None, "application_message": application_message,
+                     "already_applied": already_applied, "is_saved": is_saved}
+        )
+    finally:
+        session.close()
 
-#     if cursor.fetchone():
-#         print("\nUsername already exists.")
-#         return None
-#     # Check email
-#     cursor.execute(
-#         """
-#         SELECT candidate_id
-#         FROM candidates
-#         WHERE email = %s
-#         """,
-#         (email,)
-#     )
-#     if cursor.fetchone():
-#         print("\nEmail already exists.")
-#         return None
-#     # Insert candidate
-#     cursor.execute(
-#         """
-#         INSERT INTO candidates
-#         (
-#             full_name,
-#             username,
-#             password,
-#             email,
-#             phone,
-#             skills,
-#             experience_years
-#         )
-#         VALUES
-#         (%s, %s, %s, %s, %s, %s, %s)
-#         """,
-#         (
-#             name,
-#             username,
-#             password,
-#             email,
-#             phone,
-#             skills,
-#             int(experience)
-#         )
-#     )
-#     connection.commit()
-#     print("\nCandidate registered successfully!")
-#     return cursor.lastrowid
+@app.get("/register")
+def register_page(request: Request):
+    return templates.TemplateResponse(request=request, name="register.html", context={"message": None})
 
+@app.post("/register")
+def register_candidate_html(
+    request: Request,
+    full_name: str = Form(...), username: str = Form(...), email: str = Form(...),
+    password: str = Form(...), phone: str = Form(...), skills: str = Form(...),
+    experience_years: int = Form(0)
+):
+    session = get_session()
+    try:
+        full_name, username = full_name.strip(), username.strip()
+        email, phone, skills = email.strip(), phone.strip(), skills.strip()
+        message = None
+        if not full_name or not username or not skills:
+            message = "Please complete all required fields."
+        elif not is_valid_email(email):
+            message = "Invalid email address."
+        elif not is_valid_phone(phone):
+            message = "Phone number must contain exactly 10 digits."
+        elif not is_valid_password(password):
+            message = "Password must contain at least 8 characters, one letter and one number."
+        elif experience_years < 0:
+            message = "Experience cannot be negative."
+        elif session.query(Candidate).filter(Candidate.username == username).first():
+            message = "Username already exists."
+        elif session.query(Candidate).filter(Candidate.email == email).first():
+            message = "Email already exists."
+        if message:
+            return templates.TemplateResponse(request=request, name="register.html", context={"message": message}, status_code=400)
+        candidate = Candidate(
+            full_name=full_name, username=username, email=email,
+            password=password, phone=phone, skills=skills,
+            experience_years=experience_years
+        )
+        session.add(candidate)
+        session.commit()
+        return RedirectResponse("/login?registered=1", status_code=303)
+    finally:
+        session.close()
 
-# def login_candidate():
-#     print("\n" + "=" * 15)
-#     print("CANDIDATE LOGIN")
-#     print("=" * 15)
-#     username = get_non_empty_input("Username: ")
-#     password = get_non_empty_input("Password: ")
-#     cursor.execute(
-#         """
-#         SELECT candidate_id, full_name
-#         FROM candidates
-#         WHERE username = %s
-#         AND password = %s
-#         """,
-#         (username, password)
-#     )
+@app.get("/login")
+def candidate_login_page(request: Request):
+    if request.query_params.get("registered"):
+        message = "Registration successful. Please log in."
+    elif request.query_params.get("reset"):
+        message = "Password updated successfully. Please log in."
+    else:
+        message = None
+    return templates.TemplateResponse(request=request, name="login.html", context={"message": message})
 
-#     user = cursor.fetchone()
-#     if user:
-#         print(f"\nWelcome, {user[1]}!")
-#         return user[0]
-#     print("\nInvalid username or password.")
-#     return None
+@app.post("/login")
+def candidate_login_html(request: Request, username: str = Form(...), password: str = Form(...)):
+    session = get_session()
+    try:
+        candidate = session.query(Candidate).filter(Candidate.username == username.strip()).first()
+        if not candidate or password != candidate.password:
+            return templates.TemplateResponse(request=request, name="login.html", context={"message": "Invalid username or password."}, status_code=401)
+        response = RedirectResponse("/dashboard", status_code=303)
+        response.set_cookie(
+            key="candidate_id",
+            value=str(candidate.candidate_id),
+        )
+        return response
+    finally:
+        session.close()
 
-# def register_employee():
-#     print("\n" + "=" * 15)
-#     print("EMPLOYER REGISTRATION")
-#     print("=" * 15)
-#     company_name = get_non_empty_input("Company Name: ")
-#     username = get_non_empty_input("Username: ")
-#     email = get_valid_email("Company Email: ")
-#     password = get_valid_password("Password: ")
-#     phone = get_valid_phone("Phone: ")
+@app.get("/logout")
+def candidate_logout(request: Request):
+    response = RedirectResponse("/", status_code=303)
+    response.delete_cookie("candidate_id")
+    return response
 
-#     # Check username
-#     cursor.execute(
-#         """
-#         SELECT employee_id
-#         FROM employees
-#         WHERE username = %s
-#         """,
-#         (username,)
-#     )
+@app.get("/dashboard")
+def candidate_dashboard(request: Request):
+    candidate_id = get_cookie_id(request, "candidate_id")
+    if not candidate_id:
+        return RedirectResponse("/login", status_code=303)
+    session = get_session()
+    try:
+        candidate = session.query(Candidate).filter(Candidate.candidate_id == candidate_id).first()
+        if not candidate:
+            return RedirectResponse("/login", status_code=303)
+        applications = session.query(
+            Application, Job.title, Job.location, Job.salary, Employee.company_name
+        ).join(Job, Application.job_id == Job.job_id).join(
+            Employee, Job.employee_id == Employee.employee_id
+        ).filter(Application.candidate_id == candidate_id).order_by(Application.applied_on.desc()).all()
+        tracked_jobs = session.query(TrackedJob).filter(
+            TrackedJob.candidate_id == candidate_id
+        ).order_by(TrackedJob.tracked_id.desc()).all()
+        tracker_summary = {"Wishlist": 0, "Applied": 0, "Interview": 0, "Offer": 0, "Rejected": 0}
+        for tracked in tracked_jobs:
+            if tracked.status in tracker_summary:
+                tracker_summary[tracked.status] += 1
+        return templates.TemplateResponse(
+            request=request, name="dashboard.html",
+            context={"candidate": candidate, "applications": applications,
+                     "total_applications": len(applications), "tracked_jobs": tracked_jobs,
+                     "tracker_summary": tracker_summary, "total_tracked": len(tracked_jobs)}
+        )
+    finally:
+        session.close()
 
-#     if cursor.fetchone():
-#         print("\nUsername already exists.")
-#         return None
+@app.post("/job/{job_id}/apply")
+def apply_job_html(request: Request, job_id: int):
+    candidate_id = get_cookie_id(request, "candidate_id")
+    if not candidate_id:
+        return RedirectResponse("/login", status_code=303)
+    session = get_session()
+    try:
+        candidate = session.query(Candidate).filter(Candidate.candidate_id == candidate_id).first()
+        job = session.query(Job).filter(Job.job_id == job_id, Job.status == "Open").first()
+        if not candidate or not job:
+            return RedirectResponse("/jobs", status_code=303)
+        existing = session.query(Application).filter(
+            Application.job_id == job_id, Application.candidate_id == candidate_id
+        ).first()
+        if existing:
+            message = "You have already applied for this job."
+        else:
+            application = Application(job_id=job_id, candidate_id=candidate_id, status="Applied")
+            session.add(application)
+            sync_tracker(session, candidate_id, job_id, "Applied")
+            session.commit()
+            message = "Application submitted successfully!"
+        from urllib.parse import quote
+        return RedirectResponse(f"/job/{job_id}?application_message={quote(message)}", status_code=303)
+    finally:
+        session.close()
 
-#     # Check email
-#     cursor.execute(
-#         """
-#         SELECT employee_id
-#         FROM employees
-#         WHERE email = %s
-#         """,
-#         (email,)
-#     )
+# ======================= CANDIDATE JOB TRACKER FRONTEND =======================
+@app.get("/tracker")
+def tracker_page(request: Request, status: str = ""):
+    candidate_id = get_cookie_id(request, "candidate_id")
+    if not candidate_id:
+        return RedirectResponse("/login", status_code=303)
+    session = get_session()
+    try:
+        query = session.query(TrackedJob).filter(TrackedJob.candidate_id == candidate_id)
+        if status:
+            query = query.filter(TrackedJob.status == status)
+        tracked_jobs = query.order_by(TrackedJob.tracked_id.desc()).all()
+        all_rows = session.query(TrackedJob.status).filter(TrackedJob.candidate_id == candidate_id).all()
+        summary = {"Wishlist": 0, "Applied": 0, "Interview": 0, "Offer": 0, "Rejected": 0}
+        for (item_status,) in all_rows:
+            if item_status in summary:
+                summary[item_status] += 1
+        return templates.TemplateResponse(
+            request=request, name="tracker.html",
+            context={"tracked_jobs": tracked_jobs, "summary": summary,
+                     "total_tracked": len(all_rows), "selected_status": status,
+                     "message": request.query_params.get("message", "")}
+        )
+    finally:
+        session.close()
 
-#     if cursor.fetchone():
-#         print("\nEmail already exists.")
-#         return None
+@app.post("/my-tracker/save/{job_id}")
+def save_portal_job(request: Request, job_id: int):
+    candidate_id = get_cookie_id(request, "candidate_id")
+    if not candidate_id:
+        return RedirectResponse("/login", status_code=303)
+    session = get_session()
+    try:
+        candidate = session.query(Candidate).filter(Candidate.candidate_id == candidate_id).first()
+        job = session.query(Job).filter(Job.job_id == job_id, Job.status == "Open").first()
+        if not candidate or not job:
+            return RedirectResponse("/jobs", status_code=303)
+        if session.query(Application).filter(Application.candidate_id == candidate_id, Application.job_id == job_id).first():
+            return RedirectResponse("/tracker?message=You+have+already+applied+for+this+job", status_code=303)
+        tracked = session.query(TrackedJob).filter(
+            TrackedJob.candidate_id == candidate_id, TrackedJob.job_id == job_id
+        ).first()
+        if tracked:
+            session.delete(tracked)
+            message = "Job removed from your Wishlist"
+        else:
+            session.add(TrackedJob(candidate_id=candidate_id, job_id=job_id,
+                                   company=session.query(Employee.company_name).filter(Employee.employee_id == job.employee_id).scalar(),
+                                   role=job.title, source="Portal", status="Wishlist"))
+            message = "Job saved to your Wishlist"
+        session.commit()
+        return RedirectResponse(f"/jobs?tracker_message={message.replace(' ', '+')}", status_code=303)
+    finally:
+        session.close()
 
-#     # Insert employer
-#     cursor.execute(
-#         """
-#         INSERT INTO employees
-#         (
-#             company_name,
-#             username,
-#             password,
-#             email,
-#             phone
-#         )
-#         VALUES
-#         (%s, %s, %s, %s, %s)
-#         """,
-#         (
-#             company_name,
-#             username,
-#             password,
-#             email,
-#             phone
-#         )
-#     )
-#     connection.commit()
-#     print("\nEmployer registered successfully!")
-#     return cursor.lastrowid
+@app.post("/my-tracker/add-external")
+def add_external_tracked_job(request: Request, company: str = Form(...), role: str = Form(...),
+                             source: str = Form("Manual"), notes: str = Form("")):
+    candidate_id = get_cookie_id(request, "candidate_id")
+    if not candidate_id:
+        return RedirectResponse("/login", status_code=303)
+    company, role = company.strip(), role.strip()
+    if not company or not role:
+        return RedirectResponse("/tracker?message=Company+and+role+are+required", status_code=303)
+    session = get_session()
+    try:
+        session.add(TrackedJob(candidate_id=candidate_id, company=company, role=role,
+                               source=(source.strip() or "Manual"), status="Wishlist", notes=notes.strip() or None))
+        session.commit()
+        return RedirectResponse("/tracker?message=External+job+added+to+your+tracker", status_code=303)
+    finally:
+        session.close()
 
+@app.post("/my-tracker/update/{tracked_id}")
+def update_tracker_item(request: Request, tracked_id: int, status: str = Form(...), notes: str = Form("")):
+    candidate_id = get_cookie_id(request, "candidate_id")
+    if not candidate_id:
+        return RedirectResponse("/login", status_code=303)
+    allowed = {"Wishlist", "Applied", "Interview", "Offer", "Rejected"}
+    if status not in allowed:
+        return RedirectResponse("/tracker?message=Invalid+status", status_code=303)
+    session = get_session()
+    try:
+        item = session.query(TrackedJob).filter(TrackedJob.tracked_id == tracked_id,
+                                                TrackedJob.candidate_id == candidate_id).first()
+        if not item:
+            return RedirectResponse("/tracker?message=Tracked+job+not+found", status_code=303)
+        application = None
+        if item.job_id:
+            application = session.query(Application).filter(Application.job_id == item.job_id,
+                                                              Application.candidate_id == candidate_id).first()
+        if item.job_id:
+            if application:
+                item.status = {"Applied": "Applied", "Shortlisted": "Interview", "Rejected": "Rejected", "Hired": "Offer"}.get(application.status, item.status)
+            else:
+                item.status = "Wishlist"
+        else:
+            item.status = status
+            if status != "Wishlist" and item.applied_date is None:
+                item.applied_date = date.today()
+        item.notes = notes.strip() or None
+        session.commit()
+        return RedirectResponse("/tracker?message=Tracker+updated", status_code=303)
+    finally:
+        session.close()
 
-# def login_employee():
-#     print("\n" + "=" * 15)
-#     print("EMPLOYER LOGIN")
-#     print("=" * 15)
-#     username = get_non_empty_input("Username: ")
-#     password = get_non_empty_input("Password: ")
-#     cursor.execute(
-#         """
-#         SELECT employee_id, company_name
-#         FROM employees
-#         WHERE username = %s
-#         AND password = %s
-#         """,
-#         (username, password)
-#     )
-#     user = cursor.fetchone()
-#     if user:
-#         print(f"\nWelcome, {user[1]}!")
-#         return user[0]
-#     print("\nInvalid username or password.")
-#     return None
+@app.post("/my-tracker/delete/{tracked_id}")
+def delete_tracker_item(request: Request, tracked_id: int):
+    candidate_id = get_cookie_id(request, "candidate_id")
+    if not candidate_id:
+        return RedirectResponse("/login", status_code=303)
+    session = get_session()
+    try:
+        item = session.query(TrackedJob).filter(TrackedJob.tracked_id == tracked_id, TrackedJob.candidate_id == candidate_id).first()
+        if item:
+            session.delete(item)
+            session.commit()
+        return RedirectResponse("/tracker?message=Tracker+item+removed", status_code=303)
+    finally:
+        session.close()
 
-# def login_or_register():
-#     global current_role
-#     while True:
-#         print("\n" + "=" * 20)
-#         print("JOB PORTAL")
-#         print("=" * 20)
-#         print("1. Candidate Login")
-#         print("2. Candidate Register")
-#         print("3. Employer Login")
-#         print("4. Employer Register")
-#         print("5. Exit")
-        
-#         choice = input("\nEnter your choice: ").strip()
-#         if choice == "1":
-#             user_id = login_candidate()
-#             if user_id:
-#                 current_role = "candidate"
-#                 return user_id
-#         elif choice == "2":
-#             user_id = register_candidate()
-#             if user_id:
-#                 current_role = "candidate"
-#                 return user_id
-#         elif choice == "3":
-#             user_id = login_employee()
-#             if user_id:
-#                 current_role = "employee"
-#                 return user_id
-#         elif choice == "4":
-#             user_id = register_employee()
-#             if user_id:
-#                 current_role = "employee"
-#                 return user_id
-#         elif choice == "5":
-#             return None
-#         else:
-#             print("\nInvalid choice.")
+@app.get("/employer/register")
+def employer_register_page(request: Request):
+    return templates.TemplateResponse(request=request, name="employee_register.html", context={"message": None})
 
-# def add_job(employee_id):
-#     print("\n" + "=" * 15)
-#     print("ADD JOB")
-#     print("=" * 15)
+@app.post("/employer/register")
+def employer_register_html(
+    request: Request, company_name: str = Form(...), username: str = Form(...),
+    email: str = Form(...), password: str = Form(...), phone: str = Form(...)
+):
+    session = get_session()
+    try:
+        company_name, username, email, phone = company_name.strip(), username.strip(), email.strip(), phone.strip()
+        message = None
+        if not company_name or not username:
+            message = "Company name and username are required."
+        elif not is_valid_email(email):
+            message = "Invalid email address."
+        elif not is_valid_phone(phone):
+            message = "Phone number must contain exactly 10 digits."
+        elif not is_valid_password(password):
+            message = "Password must contain at least 8 characters, one letter and one number."
+        elif session.query(Employee).filter(Employee.username == username).first():
+            message = "Username already exists."
+        elif session.query(Employee).filter(Employee.email == email).first():
+            message = "Email already exists."
+        if message:
+            return templates.TemplateResponse(request=request, name="employee_register.html", context={"message": message}, status_code=400)
+        employee = Employee(company_name=company_name, username=username, email=email,
+                            password=password, phone=phone)
+        session.add(employee)
+        session.commit()
+        return RedirectResponse("/employer/login?registered=1", status_code=303)
+    finally:
+        session.close()
 
-#     title = get_non_empty_input("Job Title: ")
-#     description = get_non_empty_input("Job Description: ")
-#     location = get_non_empty_input("Location: ")
-#     job_type = get_valid_choice(
-#         "Job Type (Full Time/Part Time/Internship/Contract): ",
-#         [
-#             "Full Time",
-#             "Part Time",
-#             "Internship",
-#             "Contract"
-#         ]
-#     )
+@app.get("/employer/login")
+def employer_login_page(request: Request):
+    if request.query_params.get("registered"):
+        message = "Company registered successfully. Please log in."
+    elif request.query_params.get("reset"):
+        message = "Password updated successfully. Please log in."
+    else:
+        message = None
+    return templates.TemplateResponse(request=request, name="employee_login.html", context={"message": message})
 
-#     salary = get_non_empty_input("Salary (example: 6 LPA): ")
-#     cursor.execute(
-#         """
-#         INSERT INTO jobs
-#         (
-#             employee_id,
-#             title,
-#             description,
-#             location,
-#             job_type,
-#             salary
-#         )
-#         VALUES
-#         (%s, %s, %s, %s, %s, %s)
-#         """,
-#         (
-#             employee_id,
-#             title,
-#             description,
-#             location,
-#             job_type,
-#             salary
-#         )
-#     )
-#     connection.commit()
-#     print("\nJob added successfully!")
+@app.post("/employer/login")
+def employer_login_html(request: Request, username: str = Form(...), password: str = Form(...)):
+    session = get_session()
+    try:
+        employee = session.query(Employee).filter(Employee.username == username.strip()).first()
+        if not employee or password != employee.password:
+            return templates.TemplateResponse(request=request, name="employee_login.html", context={"message": "Invalid username or password."}, status_code=401)
+        response = RedirectResponse("/employer/dashboard", status_code=303)
+        response.set_cookie(
+            key="employee_id",
+            value=str(employee.employee_id),
+            httponly=True,
+            samesite="lax"
+        )
+        return response
+    finally:
+        session.close()
 
+@app.get("/employer/logout")
+def employer_logout(request: Request):
+    response = RedirectResponse("/", status_code=303)
+    response.delete_cookie("employee_id")
+    return response
 
-# def view_jobs():
-#     cursor.execute(
-#         """
-#         SELECT
-#             j.job_id,
-#             j.title,
-#             e.company_name,
-#             j.location,
-#             j.job_type,
-#             j.salary
-#         FROM jobs j
-#         JOIN employees e
-#         ON j.employee_id = e.employee_id
-#         WHERE j.status = 'Open'
-#         ORDER BY j.posted_on DESC
-#         """
-#     )
-#     jobs = cursor.fetchall()
-#     if not jobs:
-#         print("\nNo jobs available.")
-#         return
-#     print("\n" + "=" * 100)
-#     print(
-#         f"{'ID':<5}"
-#         f"{'TITLE':<25}"
-#         f"{'COMPANY':<20}"
-#         f"{'LOCATION':<15}"
-#         f"{'TYPE':<15}"
-#         f"SALARY"
-#     )
-#     print("-" * 100)
-#     for job in jobs:
-#         print(
-#             f"{job[0]:<5}"
-#             f"{job[1]:<25}"
-#             f"{job[2]:<20}"
-#             f"{job[3]:<15}"
-#             f"{job[4]:<15}"
-#             f"{job[5]}"
-#         )
-# def search_jobs():
-#     keyword = get_non_empty_input(
-#         "Search job title/location: "
-#     )
-#     cursor.execute(
-#         """
-#         SELECT
-#             j.job_id,
-#             j.title,
-#             e.company_name,
-#             j.location,
-#             j.job_type,
-#             j.salary
-#         FROM jobs j
-#         JOIN employees e
-#         ON j.employee_id = e.employee_id
-#         WHERE j.status = 'Open'
-#         AND (
-#             j.title LIKE %s
-#             OR j.location LIKE %s
-#             OR j.description LIKE %s
-#         )
-#         """,
-#         (
-#             f"%{keyword}%",
-#             f"%{keyword}%",
-#             f"%{keyword}%"
-#         )
-#     )
-#     jobs = cursor.fetchall()
-#     if not jobs:
-#         print("\nNo matching jobs found.")
-#         return
-#     print("\nSearch Results")
-#     print("-" * 100)
-#     for job in jobs:
-#         print(
-#             f"ID: {job[0]} | "
-#             f"Title: {job[1]} | "
-#             f"Company: {job[2]} | "
-#             f"Location: {job[3]} | "
-#             f"Type: {job[4]} | "
-#             f"Salary: {job[5]}"
-#         )
+@app.get("/forgot-password")
+def forgot_password_page(request: Request):
+    role = request.query_params.get("role", "candidate")
+    if role not in ("candidate", "employer"):
+        role = "candidate"
+    return templates.TemplateResponse(
+        request=request, name="forgot_password.html",
+        context={"message": None, "role": role}
+    )
 
-# def sort_jobs():
-#     print("\nSort Jobs By")
-#     print("1. Title")
-#     print("2. Latest Posted")
-#     choice = input(
-#         "Enter choice: "
-#     ).strip()
-#     if choice == "1":
-#         column = "j.title"
-#     elif choice == "2":
-#         column = "j.posted_on"
-#     else:
-#         print("\nInvalid choice.")
-#         return
-#     query = f"""
-#         SELECT
-#             j.job_id,
-#             j.title,
-#             e.company_name,
-#             j.location,
-#             j.job_type,
-#             j.salary
-#         FROM jobs j
-#         JOIN employees e
-#         ON j.employee_id = e.employee_id
-#         WHERE j.status = 'Open'
-#         ORDER BY {column} ASC
-#     """
-#     cursor.execute(query)
-#     jobs = cursor.fetchall()
-#     if not jobs:
-#         print("\nNo jobs available.")
-#         return
-#     print("\nSorted Jobs")
-#     print("-" * 100)
-#     for job in jobs:
-#         print(
-#             f"ID: {job[0]} | "
-#             f"{job[1]} | "
-#             f"{job[2]} | "
-#             f"{job[3]} | "
-#             f"{job[4]} | "
-#             f"{job[5]}"
-#         )
+@app.post("/forgot-password")
+def reset_password_without_otp(
+    request: Request,
+    role: str = Form(...),
+    username: str = Form(...),
+    email: str = Form(...),
+    new_password: str = Form(...),
+    confirm_password: str = Form(...),
+):
+    role = role.strip().lower()
+    username = username.strip()
+    email = email.strip().lower()
+    message = None
+    if role not in ("candidate", "employer"):
+        message = "Please select a valid account type."
+    elif not is_valid_email(email):
+        message = "Please enter a valid email address."
+    elif not is_valid_password(new_password):
+        message = "Password must contain at least 8 characters, one letter and one number."
+    elif new_password != confirm_password:
+        message = "New password and confirm password do not match."
+    if message:
+        return templates.TemplateResponse(
+            request=request, name="forgot_password.html",
+            context={"message": message, "role": role}, status_code=400
+        )
 
+    session = get_session()
+    try:
+        if role == "candidate":
+            account = session.query(Candidate).filter(
+                Candidate.username == username, Candidate.email == email
+            ).first()
+            login_url = "/login"
+        else:
+            account = session.query(Employee).filter(
+                Employee.username == username, Employee.email == email
+            ).first()
+            login_url = "/employer/login"
+        if not account:
+            return templates.TemplateResponse(
+                request=request, name="forgot_password.html",
+                context={"message": "No account found with that username and email.", "role": role},
+                status_code=404
+            )
+        account.password = new_password
+        session.commit()
+        return RedirectResponse(f"{login_url}?reset=1", status_code=303)
+    finally:
+        session.close()
 
-# def apply_for_job(candidate_id):
+@app.get("/employer/dashboard")
+def employer_dashboard(request: Request):
+    employee_id = get_cookie_id(request, "employee_id")
+    if not employee_id:
+        return RedirectResponse("/employer/login", status_code=303)
+    session = get_session()
+    try:
+        employee = session.query(Employee).filter(Employee.employee_id == employee_id).first()
+        if not employee:
+            return RedirectResponse("/employer/login", status_code=303)
+        jobs = session.query(Job).filter(Job.employee_id == employee_id).order_by(Job.posted_on.desc()).all()
+        total_applications = session.query(Application).join(Job, Application.job_id == Job.job_id).filter(Job.employee_id == employee_id).count()
+        return templates.TemplateResponse(
+            request=request, name="employer_dashboard.html",
+            context={"employee": employee, "jobs": jobs, "total_jobs": len(jobs),
+                     "total_applications": total_applications}
+        )
+    finally:
+        session.close()
 
-#     job_id = get_valid_number("Enter Job ID: ")
-#     job_id = int(job_id)
-#     # Check job
-#     cursor.execute(
-#         """
-#         SELECT job_id
-#         FROM jobs
-#         WHERE job_id = %s
-#         AND status = 'Open'
-#         """,
-#         (job_id,)
-#     )
-#     if not cursor.fetchone():
-#         print("\nJob not found.")
-#         return
+@app.get("/employer/post-job")
+def post_job_page(request: Request):
+    if not get_cookie_id(request, "employee_id"):
+        return RedirectResponse("/employer/login", status_code=303)
+    return templates.TemplateResponse(request=request, name="post_job.html", context={"message": None})
 
-#     # Check duplicate application
-#     cursor.execute(
-#         """
-#         SELECT application_id
-#         FROM applications
-#         WHERE job_id = %s
-#         AND candidate_id = %s
-#         """,
-#         (job_id,candidate_id)
-#     )
+@app.post("/employer/post-job")
+def create_job_html(
+    request: Request, title: str = Form(...), description: str = Form(...),
+    location: str = Form(...), job_type: str = Form(...), salary: str = Form(...)
+):
+    employee_id = get_cookie_id(request, "employee_id")
+    if not employee_id:
+        return RedirectResponse("/employer/login", status_code=303)
+    if not is_valid_choice(job_type, ["Full Time", "Part Time", "Internship", "Contract"]):
+        return templates.TemplateResponse(request=request, name="post_job.html", context={"message": "Invalid job type."}, status_code=400)
+    session = get_session()
+    try:
+        job = Job(employee_id=employee_id, title=title.strip(), description=description.strip(),
+                  location=location.strip(), job_type=job_type, salary=salary.strip())
+        session.add(job)
+        session.commit()
+        return RedirectResponse("/employer/dashboard", status_code=303)
+    finally:
+        session.close()
 
-#     if cursor.fetchone():
-#         print(
-#             "\nYou have already applied "
-#             "for this job."
-#         )
-#         return
-#     # Insert application
-#     cursor.execute(
-#         """
-#         INSERT INTO applications
-#         (
-#             job_id,
-#             candidate_id,
-#             status
-#         )
-#         VALUES
-#         (%s, %s, %s)
-#         """,
-#         (
-#             job_id,
-#             candidate_id,
-#             "Applied"
-#         )
-#     )
-#     connection.commit()
-#     print("\nApplication submitted successfully!")
+@app.get("/employer/job/{job_id}/applications")
+def employer_applications(request: Request, job_id: int):
+    employee_id = get_cookie_id(request, "employee_id")
+    if not employee_id:
+        return RedirectResponse("/employer/login", status_code=303)
+    session = get_session()
+    try:
+        job = session.query(Job).filter(Job.job_id == job_id, Job.employee_id == employee_id).first()
+        if not job:
+            return RedirectResponse("/employer/dashboard", status_code=303)
+        applications = session.query(Application, Candidate).join(
+            Candidate, Application.candidate_id == Candidate.candidate_id
+        ).filter(Application.job_id == job_id).order_by(Application.applied_on.desc()).all()
+        return templates.TemplateResponse(request=request, name="employer_applications.html",
+                                          context={"job": job, "applications": applications})
+    finally:
+        session.close()
 
-
-# def view_my_applications(candidate_id):
-#     cursor.execute(
-#         """
-#         SELECT
-#             a.application_id,
-#             j.title,
-#             e.company_name,
-#             j.location,
-#             a.status,
-#             a.applied_on
-#         FROM applications a
-#         JOIN jobs j
-#         ON a.job_id = j.job_id
-#         JOIN employees e
-#         ON j.employee_id = e.employee_id
-#         WHERE a.candidate_id = %s
-#         ORDER BY a.applied_on DESC
-#         """,
-#         (candidate_id,)
-#     )
-#     applications = cursor.fetchall()
-#     if not applications:
-#         print("\nYou have not applied for any jobs.")
-#         return
-#     print("\nMy Applications")
-#     print("-" * 100)
-#     for app in applications:
-#         print(f"Application ID : {app[0]}")
-#         print(f"Job            : {app[1]}")
-#         print(f"Company        : {app[2]}")
-#         print(f"Location       : {app[3]}")
-#         print(f"Status         : {app[4]}")
-#         print(f"Applied On     : {app[5]}")
-#         print("-" * 100)
-
-# def view_applications(employee_id):
-#     job_id = get_valid_number("Enter Job ID: ")
-#     job_id = int(job_id)
-#     # Check job ownership
-#     cursor.execute(
-#         """
-#         SELECT job_id
-#         FROM jobs
-#         WHERE job_id = %s
-#         AND employee_id = %s
-#         """,
-#         (job_id,employee_id)
-#     )
-#     if not cursor.fetchone():
-#         print(
-#             "\nThis job does not belong "
-#             "to your company."
-#         )
-#         return
-#     cursor.execute(
-#         """
-#         SELECT
-#             a.application_id,
-#             c.full_name,
-#             c.email,
-#             c.phone,
-#             c.skills,
-#             c.experience_years,
-#             a.status,
-#             a.applied_on
-#         FROM applications a
-#         JOIN candidates c
-#         ON a.candidate_id = c.candidate_id
-#         WHERE a.job_id = %s
-#         """,
-#         (job_id,)
-#     )
-#     applications = cursor.fetchall()
-#     if not applications:
-#         print("\nNo applications found.")
-#         return
-#     print("\nApplications")
-#     print("=" * 100)
-
-#     for app in applications:
-#         print(f"Application ID : {app[0]}")
-#         print(f"Candidate      : {app[1]}")
-#         print(f"Email          : {app[2]}")
-#         print(f"Phone          : {app[3]}")
-#         print(f"Skills         : {app[4]}")
-#         print(f"Experience     : {app[5]} years")
-#         print(f"Status         : {app[6]}")
-#         print(f"Applied On     : {app[7]}")
-#         print("-" * 100)
-        
-        
-# def update_application_status(employee_id):
-
-#     application_id = get_valid_number("Enter Application ID: ")
-#     application_id = int(application_id)
-#     new_status = get_valid_choice(
-#         "Status (Applied/Shortlisted/Rejected/Hired): ",
-#         ["Applied","Shortlisted","Rejected","Hired"]
-#     )
-#     # Check application belongs to employer
-#     cursor.execute(
-#         """
-#         SELECT a.application_id
-#         FROM applications a
-#         JOIN jobs j
-#         ON a.job_id = j.job_id
-#         WHERE a.application_id = %s
-#         AND j.employee_id = %s
-#         """,
-#         (application_id,employee_id)
-#     )
-#     if not cursor.fetchone():
-#         print(
-#             "\nApplication not found "
-#             "or does not belong to you.")
-#         return
-#     cursor.execute(
-#         """
-#         UPDATE applications SET status = %s WHERE application_id = %s
-#         """,
-#         (new_status,application_id)
-#     )
-#     connection.commit()
-#     print("\nApplication status updated successfully!")
-
-
-# def candidate_menu(candidate_id):
-#     while True:
-#         print("\n" + "=" * 20)
-#         print("CANDIDATE MENU")
-#         print("=" * 20)
-
-#         print("1. View Jobs")
-#         print("2. Search Jobs")
-#         print("3. Apply for Job")
-#         print("4. Sort Jobs")
-#         print("5. View My Applications")
-#         print("6. Logout")
-
-#         choice = input("\nEnter choice: ").strip()
-#         if choice == "1":
-#             view_jobs()
-#         elif choice == "2":
-#             search_jobs()
-#         elif choice == "3":
-#             apply_for_job(candidate_id)
-#         elif choice == "4":
-#             sort_jobs()
-#         elif choice == "5":
-#             view_my_applications(candidate_id)
-#         elif choice == "6":
-#             print("\nLogged out.")
-#             break
-#         else:
-#             print("\nInvalid choice.")
-# def employer_menu(employee_id):
-#     while True:
-#         print("\n" + "=" * 20)
-#         print("EMPLOYER MENU")
-#         print("=" * 20)
-
-#         print("1. Add Job")
-#         print("2. View Applications")
-#         print("3. Update Application Status")
-#         print("4. Logout")
-#         choice = input("\nEnter choice: ").strip()
-#         if choice == "1":
-#             add_job(employee_id)
-#         elif choice == "2":
-#             view_applications(employee_id)
-#         elif choice == "3":
-#             update_application_status(employee_id)
-#         elif choice == "4":
-#             print("\nLogged out.")
-#             break
-#         else:
-#             print("\nInvalid choice.")
-
-# def main():
-
-#     global current_user_id
-#     global current_role
-#     current_user_id = login_or_register()
-#     if current_user_id is None:
-#         print("\nThank you for using Job Portal.")
-#         return
-#     if current_role == "candidate":
-#         candidate_menu(current_user_id)
-#     elif current_role == "employee":
-#         employer_menu(current_user_id)   
-#     cursor.close()
-#     connection.close()
-#     print("\nDatabase connection closed.")
-
-# main()
+@app.post("/employer/application/{application_id}/status")
+def update_employer_application_status(request: Request, application_id: int, status: str = Form(...)):
+    employee_id = get_cookie_id(request, "employee_id")
+    if not employee_id:
+        return RedirectResponse("/employer/login", status_code=303)
+    if status not in ["Applied", "Shortlisted", "Rejected", "Hired"]:
+        return RedirectResponse("/employer/dashboard", status_code=303)
+    session = get_session()
+    try:
+        application = session.query(Application).join(Job, Application.job_id == Job.job_id).filter(
+            Application.application_id == application_id, Job.employee_id == employee_id
+        ).first()
+        if not application:
+            return RedirectResponse("/employer/dashboard", status_code=303)
+        application.status = status
+        sync_tracker(session, application.candidate_id, application.job_id, status)
+        session.commit()
+        return RedirectResponse(f"/employer/job/{application.job_id}/applications", status_code=303)
+    finally:
+        session.close()

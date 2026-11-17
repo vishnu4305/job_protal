@@ -1,5 +1,6 @@
-{% extends "base.html" %} {% block title %}My Job Tracker | TalentHub{% endblock
-%} {% block content %}
+{% extends "base.html" %} 
+{% block title %}My Job Tracker | TalentHub{% endblock %} 
+{% block content %}
 <section class="page-banner tracker-banner">
   <div class="container">
     <p class="eyebrow">CANDIDATE WORKSPACE</p>
@@ -16,8 +17,7 @@
     <div class="notice success">{{ message }}</div>
     {% endif %}
     <div class="tracker-summary-grid">
-      {% for label in ['Wishlist', 'Applied', 'Interview', 'Offer', 'Rejected']
-      %}
+      {% for label in ['Wishlist', 'Applied', 'Interview', 'Offer', 'Rejected'] %}
       <a
         class="tracker-summary-card {% if selected_status == label %}active{% endif %}"
         href="/tracker?status={{ label }}"
