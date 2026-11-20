@@ -9,10 +9,35 @@ from pydantic import BaseModel
 from datetime import date
 from validation import *
 from tracker import router as tracker_router, sync_tracker
+from pwdlib import PasswordHash
 
 app = FastAPI(title="Job Portal")
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
+
+# PASSWORD HASHING (Argon2)
+password_hasher = PasswordHash.recommended()
+
+
+def hash_password(password: str) -> str:
+    """Return an Argon2 hash for a plain-text password."""
+    return password_hasher.hash(password)
+
+
+def verify_password(password: str, stored_password: str) -> bool:
+    """
+    Verify an Argon2 hash. Legacy plain-text passwords are accepted once
+    so the login route can upgrade them to Argon2 immediately.
+    """
+    if stored_password.startswith("$argon2"):
+        return password_hasher.verify(password, stored_password)
+    return password == stored_password
+
+
+def is_argon2_hash(stored_password: str) -> bool:
+    return stored_password.startswith("$argon2")
+
+
 
 def get_cookie_id(request: Request, cookie_name: str):
     value = request.cookies.get(cookie_name)
@@ -119,6 +144,8 @@ def register_candidate(req: CandidateRequest):
     if experience_years < 0:# Check experience
         return { "message": "Experience cannot be negative"}
     session = get_session()
+
+    
     # Check username
     existing_candidate = session.query(Candidate).filter(Candidate.username == username).first()
     if existing_candidate:
@@ -135,7 +162,7 @@ def register_candidate(req: CandidateRequest):
     candidate = Candidate(
         full_name=full_name,
         username=username,
-        password=password,
+        password=hash_password(password),
         email=email,
         phone=phone,
         skills=skills,
@@ -164,9 +191,12 @@ def login_candidate(req: CandidateLoginRequest):
     session = get_session()
     # Find candidate in MySQL database
     user = session.query(Candidate).filter(Candidate.username == username).first()
-    if not user or password != user.password:
+    if not user or not verify_password(password, user.password):
         user = None
     if user:
+        if not is_argon2_hash(user.password):
+            user.password = hash_password(password)
+            session.commit()
         response_data = {
             "message": f"Welcome, {user.full_name}!",
             "candidate_id": user.candidate_id,
@@ -228,7 +258,7 @@ def register_employee(req: EmployeeRequest):
     employee = Employee(
         company_name=company_name,
         username=username,
-        password=password,
+        password=hash_password(password),
         email=email,
         phone=phone
     )
@@ -259,9 +289,12 @@ def login_employee(req: EmployeeLoginRequest):
     session = get_session()
     # Find employee
     user = session.query(Employee).filter(Employee.username == username).first()
-    if not user or password != user.password:
+    if not user or not verify_password(password, user.password):
         user = None
     if user:
+        if not is_argon2_hash(user.password):
+            user.password = hash_password(password)
+            session.commit()
         response_data = {
             "message": f"Welcome, {user.company_name}!",
             "employee_id": user.employee_id,
@@ -819,7 +852,7 @@ def register_candidate_html(
             return templates.TemplateResponse(request=request, name="register.html", context={"message": message}, status_code=400)
         candidate = Candidate(
             full_name=full_name, username=username, email=email,
-            password=password, phone=phone, skills=skills,
+            password=hash_password(password), phone=phone, skills=skills,
             experience_years=experience_years
         )
         session.add(candidate)
@@ -843,8 +876,11 @@ def candidate_login_html(request: Request, username: str = Form(...), password: 
     session = get_session()
     try:
         candidate = session.query(Candidate).filter(Candidate.username == username.strip()).first()
-        if not candidate or password != candidate.password:
+        if not candidate or not verify_password(password, candidate.password):
             return templates.TemplateResponse(request=request, name="login.html", context={"message": "Invalid username or password."}, status_code=401)
+        if not is_argon2_hash(candidate.password):
+            candidate.password = hash_password(password)
+            session.commit()
         response = RedirectResponse("/dashboard", status_code=303)
         response.set_cookie(
             key="candidate_id",
@@ -1067,7 +1103,7 @@ def employer_register_html(
         if message:
             return templates.TemplateResponse(request=request, name="employee_register.html", context={"message": message}, status_code=400)
         employee = Employee(company_name=company_name, username=username, email=email,
-                            password=password, phone=phone)
+                            password=hash_password(password), phone=phone)
         session.add(employee)
         session.commit()
         return RedirectResponse("/employer/login?registered=1", status_code=303)
@@ -1089,8 +1125,11 @@ def employer_login_html(request: Request, username: str = Form(...), password: s
     session = get_session()
     try:
         employee = session.query(Employee).filter(Employee.username == username.strip()).first()
-        if not employee or password != employee.password:
+        if not employee or not verify_password(password, employee.password):
             return templates.TemplateResponse(request=request, name="employee_login.html", context={"message": "Invalid username or password."}, status_code=401)
+        if not is_argon2_hash(employee.password):
+            employee.password = hash_password(password)
+            session.commit()
         response = RedirectResponse("/employer/dashboard", status_code=303)
         response.set_cookie(
             key="employee_id",
@@ -1163,7 +1202,7 @@ def reset_password_without_otp(
                 context={"message": "No account found with that username and email.", "role": role},
                 status_code=404
             )
-        account.password = new_password
+        account.password = hash_password(new_password)
         session.commit()
         return RedirectResponse(f"{login_url}?reset=1", status_code=303)
     finally:
