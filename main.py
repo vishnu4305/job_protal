@@ -18,17 +18,11 @@ templates = Jinja2Templates(directory="templates")
 # PASSWORD HASHING (Argon2)
 password_hasher = PasswordHash.recommended()
 
-
 def hash_password(password: str) -> str:
     """Return an Argon2 hash for a plain-text password."""
     return password_hasher.hash(password)
 
-
 def verify_password(password: str, stored_password: str) -> bool:
-    """
-    Verify an Argon2 hash. Legacy plain-text passwords are accepted once
-    so the login route can upgrade them to Argon2 immediately.
-    """
     if stored_password.startswith("$argon2"):
         return password_hasher.verify(password, stored_password)
     return password == stored_password
@@ -36,8 +30,6 @@ def verify_password(password: str, stored_password: str) -> bool:
 
 def is_argon2_hash(stored_password: str) -> bool:
     return stored_password.startswith("$argon2")
-
-
 
 def get_cookie_id(request: Request, cookie_name: str):
     value = request.cookies.get(cookie_name)
@@ -48,8 +40,6 @@ def get_cookie_id(request: Request, cookie_name: str):
 
 app.include_router(tracker_router)
 
-# PYDANTIC MODELS
-# Candidate registration request
 class CandidateRequest(BaseModel):
     full_name: str
     username: str
@@ -59,12 +49,10 @@ class CandidateRequest(BaseModel):
     skills: str
     experience_years: int
 
-# Candidate login request
 class CandidateLoginRequest(BaseModel):
     username: str
     password: str
 
-# Employee registration request
 class EmployeeRequest(BaseModel):
     company_name: str
     username: str
@@ -72,12 +60,10 @@ class EmployeeRequest(BaseModel):
     password: str
     phone: str
 
-# Employee login request
 class EmployeeLoginRequest(BaseModel):
     username: str
     password: str
 
-# Job request
 class JobRequest(BaseModel):
     employee_id: int
     title: str
@@ -86,18 +72,15 @@ class JobRequest(BaseModel):
     job_type: str
     salary: str
 
-# Apply job request
 class ApplicationRequest(BaseModel):
     candidate_id: int
     job_id: int
 
-# Update application status request
 class ApplicationStatusRequest(BaseModel):
     employee_id: int
     application_id: int
     status: str
 
-# Home Page
 @app.get("/")
 def home(request: Request):
     session = get_session()
@@ -119,7 +102,6 @@ def home(request: Request):
     finally:
         session.close()
 
-# CANDIDATE REGISTER PAGE
 @app.post("/register_candidate")
 def register_candidate(req: CandidateRequest):
     full_name = req.full_name.strip()
@@ -146,19 +128,16 @@ def register_candidate(req: CandidateRequest):
     session = get_session()
 
     
-    # Check username
     existing_candidate = session.query(Candidate).filter(Candidate.username == username).first()
     if existing_candidate:
         session.close()
         return {
             "message": "Username already exists"
         }
-    # Check email
     existing_candidate = session.query(Candidate).filter(Candidate.email == email).first()
     if existing_candidate:
         session.close()
         return {"message": "Email already exists"}
-    # Create candidate
     candidate = Candidate(
         full_name=full_name,
         username=username,
@@ -182,14 +161,11 @@ def register_candidate(req: CandidateRequest):
 def login_candidate(req: CandidateLoginRequest):
     username = req.username.strip()
     password = req.password.strip()
-    # Check username
     if username == "":
         return {"message": "Username cannot be empty"}
-    # Check password
     if password == "":
         return {"message": "Password cannot be empty"}
     session = get_session()
-    # Find candidate in MySQL database
     user = session.query(Candidate).filter(Candidate.username == username).first()
     if not user or not verify_password(password, user.password):
         user = None
@@ -219,19 +195,14 @@ def register_employee(req: EmployeeRequest):
     email = req.email.strip()
     password = req.password.strip()
     phone = req.phone.strip()
-    # Check company name
     if company_name == "":
         return {"message": "Company name cannot be empty"}
-    # Check username
     if username == "":
         return { "message": "Username cannot be empty"}
-    # Check email
     if not is_valid_email(email):
         return {"message": "Invalid email format" }
-    # Check phone
     if not is_valid_phone(phone):
         return {"message": "Phone number must be exactly 10 digits"}
-    # Check password
     if not is_valid_password(password):
         return {
             "message": (
@@ -240,21 +211,18 @@ def register_employee(req: EmployeeRequest):
             )
         }
     session = get_session()
-    # Check username
     existing_employee = session.query(Employee).filter(Employee.username == username).first()
     if existing_employee:
         session.close()
         return {
             "message": "Username already exists"
         }
-    # Check email
     existing_employee = session.query(Employee).filter(Employee.email == email).first()
     if existing_employee:
         session.close()
         return {
             "message": "Email already exists"
         }
-    # Create employee
     employee = Employee(
         company_name=company_name,
         username=username,
@@ -276,18 +244,15 @@ def register_employee(req: EmployeeRequest):
 def login_employee(req: EmployeeLoginRequest):
     username = req.username.strip()
     password = req.password.strip()
-    # Check username
     if username == "":
         return {
             "message": "Username cannot be empty"
         }
-    # Check password
     if password == "":
         return {
             "message": "Password cannot be empty"
         }
     session = get_session()
-    # Find employee
     user = session.query(Employee).filter(Employee.username == username).first()
     if not user or not verify_password(password, user.password):
         user = None
@@ -318,22 +283,18 @@ def add_job(req: JobRequest):
     location = req.location.strip()
     job_type = req.job_type.strip()
     salary = req.salary.strip()
-    # Check title
     if title == "":
         return {
             "message": "Job title cannot be empty"
         }
-    # Check description
     if description == "":
         return {
             "message": "Job description cannot be empty"
         }
-    # Check location
     if location == "":
         return {
             "message": "Location cannot be empty"
         }
-    # Check job type
     valid_job_types = [
         "Full Time",
         "Part Time",
@@ -344,13 +305,11 @@ def add_job(req: JobRequest):
         return {
             "message": "Invalid job type"
         }
-    # Check salary
     if salary == "":
         return {
             "message": "Salary cannot be empty"
         }
     session = get_session()
-    # Check employee
     employee = session.query(
         Employee
     ).filter(
@@ -361,7 +320,6 @@ def add_job(req: JobRequest):
         return {
             "message": "Employee not found"
         }
-    # Create job
     job = Job(
         employee_id=employee_id,
         title=title,
@@ -521,7 +479,6 @@ def apply_for_job(req: ApplicationRequest):
         return {
             "message": "Candidate not found"
         }
-    # Check job
     job = session.query( Job ).filter(
         Job.job_id == job_id,
         Job.status == "Open"
@@ -531,7 +488,6 @@ def apply_for_job(req: ApplicationRequest):
         return {
             "message": "Job not found."
         }
-    # Check whether candidate already applied
     existing_application = session.query(
         Application
     ).filter(
@@ -543,14 +499,12 @@ def apply_for_job(req: ApplicationRequest):
         return {
             "message": "You have already applied for this job."
         }
-    # Create application
     application = Application(
         job_id=job_id,
         candidate_id=candidate_id,
         status="Applied"
     )
     session.add(application)
-    # Keep the candidate's tracker in sync
     sync_tracker(session, candidate_id, job_id, "Applied")
     session.commit()
     application_id = application.application_id
@@ -609,14 +563,12 @@ def view_applications(
 ):
 
     session = get_session()
-    # Check whether the job belongs to this employee
     job = session.query(Job).filter(Job.job_id == job_id,Job.employee_id == employee_id).first()
     if not job:
         session.close()
         return {
             "message": "This job does not belong to your company."
         }
-    # Get applications for the selected job
     applications = session.query(
         Application.application_id,
         Candidate.full_name,
@@ -675,7 +627,6 @@ def update_application_status(
             )
         }
     session = get_session()
-    # Find application belonging to this employee
     application = session.query(Application).join(Job, Application.job_id == Job.job_id).filter(
         Application.application_id == application_id,
         Job.employee_id == employee_id
@@ -688,11 +639,8 @@ def update_application_status(
                 "or does not belong to you."
             )
         }
-    # Update application status
     application.status = new_status
-    # Keep the candidate's tracker in sync
     sync_tracker(session, application.candidate_id, application.job_id, new_status)
-    # Save changes
     session.commit()
     session.close()
     return {
@@ -712,7 +660,6 @@ def jobs_page(request: Request, keyword: str = "", location: str = "", job_type:
             query = query.filter((Job.title.like(term)) | (Job.description.like(term)))
         if location.strip():
             query = query.filter(Job.location.like(f"%{location.strip()}%"))
-        # Filters used by the Categories and Companies pages
         if job_type.strip():
             query = query.filter(Job.job_type == job_type.strip())
         if company.strip():
@@ -737,7 +684,7 @@ def jobs_page(request: Request, keyword: str = "", location: str = "", job_type:
         )
     finally:
         session.close()
-# CATEGORIES PAGE (open jobs grouped by job type)
+# CATEGORIES PAGE 
 @app.get("/categories")
 def categories_page(request: Request):
     session = get_session()
@@ -746,7 +693,6 @@ def categories_page(request: Request):
             Job.status == "Open"
         ).group_by(Job.job_type).all()
         counts = {job_type: total for job_type, total in rows if job_type}
-        # Always show the four standard types, then any other type found in the data
         names = ["Full Time", "Part Time", "Internship", "Contract"]
         names += sorted(t for t in counts if t not in names)
         categories = [{"name": n, "open_jobs": counts.get(n, 0)} for n in names]
@@ -755,7 +701,6 @@ def categories_page(request: Request):
         )
     finally:
         session.close()
-# COMPANIES PAGE (every employer with its number of open jobs)
 @app.get("/companies")
 def companies_page(request: Request):
     session = get_session()
@@ -953,8 +898,6 @@ def apply_job_html(request: Request, job_id: int):
         return RedirectResponse(f"/job/{job_id}?application_message={quote(message)}", status_code=303)
     finally:
         session.close()
-
-# ======================= CANDIDATE JOB TRACKER FRONTEND =======================
 @app.get("/tracker")
 def tracker_page(request: Request, status: str = ""):
     candidate_id = get_cookie_id(request, "candidate_id")

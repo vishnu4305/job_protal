@@ -2,10 +2,10 @@ USE jobportal;
 CREATE TABLE IF NOT EXISTS tracked_jobs (
     tracked_id INT AUTO_INCREMENT PRIMARY KEY,
     candidate_id INT NOT NULL,
-    job_id INT NULL,                          -- filled for portal jobs, NULL for external jobs
+    job_id INT NULL,                         
     company VARCHAR(100) NOT NULL,
     role VARCHAR(100) NOT NULL,
-    source VARCHAR(50) DEFAULT 'Manual',      -- Portal, Indeed, Internshala, Manual
+    source VARCHAR(50) DEFAULT 'Manual',      
     status VARCHAR(20) NOT NULL DEFAULT 'Wishlist',
     applied_date DATE NULL,
     notes VARCHAR(500) NULL,
